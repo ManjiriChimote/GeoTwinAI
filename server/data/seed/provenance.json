@@ -1,0 +1,95 @@
+{
+  "city": "Nagpur",
+  "state": "Maharashtra",
+  "studyCenter": {
+    "latitude": 21.1458,
+    "longitude": 79.0882
+  },
+  "crs": "WGS84 longitude/latitude assumed from validated source coordinate ranges; user imports require explicit detection/validation",
+  "sourceRoot": "Provided GeoTwinAI_Project archive/output/processed",
+  "note": "Processed clean non-_1 duplicate files. Non-empty source attributes retained. Environmental Region=Nagpur is city-wide and is not redistributed into five analytical regions. The study area is not asserted to be an official administrative boundary. The supplied pickle is not executed. Source PDF/summary conflicts require visible provenance and dataset-specific counts.",
+  "datasets": [
+    {
+      "file": "Nagpur_Buildings_Clean.csv",
+      "category": "Buildings",
+      "rows": 46052,
+      "mappedRows": 46052,
+      "invalidCoordinates": 0,
+      "sha256": "bcda6a7cc359b0054d5ab7375cb6ec5bef53db606894305e27a479052178ee02"
+    },
+    {
+      "file": "Nagpur_Roads_Clean.csv",
+      "category": "Roads",
+      "rows": 110566,
+      "mappedRows": 110566,
+      "invalidCoordinates": 0,
+      "sha256": "c20fd1c4063026445e9274a27f9f41c68efe47bc55e190bedcb63616683382bf"
+    },
+    {
+      "file": "Nagpur_Hospitals_Clean.csv",
+      "category": "Hospitals",
+      "rows": 412,
+      "mappedRows": 412,
+      "invalidCoordinates": 0,
+      "sha256": "14d55897d6e8730c2cd2b6c069f4254e528b30f05e533b7abefb9bd96fbb426c"
+    },
+    {
+      "file": "Nagpur_Schools_Clean.csv",
+      "category": "Schools",
+      "rows": 75,
+      "mappedRows": 75,
+      "invalidCoordinates": 0,
+      "sha256": "f2449181b3d5f0f7220f2a6db4fa29897b1ea116cf152529b9b8cc3218efaff0"
+    },
+    {
+      "file": "Nagpur_Parks_Clean.csv",
+      "category": "Parks",
+      "rows": 142,
+      "mappedRows": 142,
+      "invalidCoordinates": 0,
+      "sha256": "fc4938aa03d16b509582e74a598810d5c4714b79a9e0c6a11099ab8fe2b0a69c"
+    },
+    {
+      "file": "Nagpur_WaterBodies_Clean.csv",
+      "category": "Water bodies",
+      "rows": 29,
+      "mappedRows": 29,
+      "invalidCoordinates": 0,
+      "sha256": "28108441d0113f60e410dd7b2c9211288535b25bb1797cd889f2409fb90219ff"
+    },
+    {
+      "file": "Nagpur_BuiltUp_Spatial_Clean.csv",
+      "category": "Built-up",
+      "rows": 16949,
+      "mappedRows": 16949,
+      "invalidCoordinates": 0,
+      "sha256": "5d42eb3e7015be92ad2ea50a0e30ef7baac964913fbc60e6a174da7da27e4c3b"
+    },
+    {
+      "file": "Nagpur_FloodRisk_Spatial_Clean.csv",
+      "category": "Flood risk",
+      "rows": 53097,
+      "mappedRows": 53097,
+      "invalidCoordinates": 0,
+      "sha256": "687f6af2e2ccdeb2cba4e58bf11bb17dbb72be753f5106082a073d50b1e650dc"
+    },
+    {
+      "file": "Nagpur_GreenCover_Spatial_Clean.csv",
+      "category": "Green cover",
+      "rows": 61640,
+      "mappedRows": 61640,
+      "invalidCoordinates": 0,
+      "sha256": "e1ddf199046753a4fd9b2e4299f4e3e94e2437f3602e4331573ae45e980b4739"
+    },
+    {
+      "file": "Nagpur_Sentinel2_NDVI_Spatial_Clean.csv",
+      "category": "NDVI",
+      "rows": 21046,
+      "mappedRows": 21046,
+      "invalidCoordinates": 0,
+      "sha256": "d651538d1e4e41a10f477c04fbd2478443ba105c497efd260cd75f718aaaf0fe"
+    }
+  ],
+  "totalRows": 310008,
+  "rowsWithValidCoordinates": 310008
+}

@@ -1,14 +1,106 @@
 # GeoTwinAI — The Living Digital Twin of Nagpur
 
-React / Express / tRPC / Drizzle starter, adapted from the Sandbox web-db-user template.
+A source-aware GIS and urban decision-support workspace for the supplied Nagpur study-area data. It is built on the managed Webdev server and MySQL database, React, Leaflet, Express and Drizzle, and requires first-party Manus sign-in. The map uses a local coordinate canvas under real source geometries, not third-party raster tiles. It does **not** represent a live or authoritative model of every part of the city.
 
-- `pnpm dev`: development server; honors `PORT` (default 3000).
-- `pnpm build` / `pnpm start`: build and serve `dist/index.js` and `dist/public/`.
-- `pnpm db:migrate`: apply checked-in migrations. `pnpm db:push`: generate and apply new schema changes.
-- `pnpm check` / `pnpm test`: types and application tests.
+## Run the application
 
-Start with the Webdev skill's default-template guide. Platform login, storage, payments and service contracts live in its shared references; read the relevant capability before extending its helper.
+Requirements: Node.js 22, pnpm 10.18, access to a MySQL database via `DATABASE_URL`, and valid Manus OAuth configuration. Manus Preview supplies its managed database, server runtime and session identity. No basemap tile service is required.
 
-`server/_core/publicConfig.ts` exposes only named public runtime values. Private keys stay server-side. The platform serves managed `/manus-storage/` assets; the application does not register a second proxy.
+```sh
+pnpm install --frozen-lockfile
+pnpm db:migrate
+pnpm dev
+```
 
-Platform configuration is readable and editable through `webdev.config`. Default settings are initial values, not enforced constraints. The agent may modify the files, commands and configuration or follow the flexible guide for another stack.
+The server listens on `PORT` (3000 by default). The first server start streams the bundled, clean source records into the configured database using an idempotent database lock. On subsequent starts, completed source datasets are left intact. To run schema-generation work after an intentional schema edit, review the generated migration before committing it and use `pnpm db:push` only in the project's configured database environment.
+
+Useful commands:
+
+- `pnpm dev` — Vite/Express development server.
+- `pnpm check` — TypeScript check.
+- `pnpm test` — Vitest suite.
+- `pnpm build` — frontend and server production build.
+- `pnpm start` — built server.
+- `pnpm db:migrate` — apply checked-in Drizzle migrations.
+
+Private runtime values (`DATABASE_URL`, optional built-in service credentials and upload configuration) stay server-side. Never place provider credentials in client code. `client/public/manus-routes.json` is the current public page-route manifest; refresh it when page routes change.
+
+## Project structure
+
+- `client/public/landing.html`, `landing.css`, `geotwin-og.png` — source-grounded public landing page and social preview card.
+- `client/src/pages/Home.tsx` — primary responsive workspace and section routing.
+- `client/src/components/GeoTwinMap.tsx` — source-backed Leaflet renderer, local coordinate grid, bounded record queries and feature inspection.
+- `client/src/components/GeoTwinAuthGate.tsx` — branded Manus sign-in boundary and private-route gate.
+- `client/src/components/DataImportPanel.tsx` — preview, explicit import, registry and history.
+- `client/src/components/GeoAssistant.tsx` — grounded assistant interface and persisted conversations.
+- `client/src/lib/geotwin-api.ts` — typed HTTP contracts.
+- `client/src/index.css` — editorial cartography visual system, map and responsive UI.
+- `server/geotwin/routes.ts` — map, imports, analytics, reports and conversation API.
+- `server/geotwin/database.ts` — MySQL pool and restart-safe streamed bootstrap.
+- `server/geotwin/shared.ts` — coordinate and feature normalization.
+- `server/seo.ts` — canonical/Open Graph metadata, crawler rules, public sitemap and workspace noindex policy.
+- `server/data/seed/` — bundled compressed project-source records and provenance manifests.
+- `drizzle/` — additive MySQL migrations and schema definitions.
+
+## Bundled source data
+
+The supplied project archive contributes **310,008** rows from 10 processed spatial datasets:
+
+| Dataset | Source rows |
+|---|---:|
+| Buildings | 46,052 |
+| Roads | 110,566 |
+| Hospitals | 412 |
+| Schools | 75 |
+| Parks | 142 |
+| Water bodies | 29 |
+| Built-up spatial sample | 16,949 |
+| Flood-risk spatial sample | 53,097 |
+| Green-cover spatial sample | 61,640 |
+| Sentinel-2 NDVI spatial sample | 21,046 |
+
+Rows and coordinate counts are imported and queried from the database, not hard-coded into page counters. The importer uses the supplied cleaned versions rather than duplicate raw/`_1` files; it retains non-empty source properties. `server/data/seed/provenance.json` records source filenames, source and mapped counts, and a digest. The companion summary manifest is retained in the managed metric table. No untrusted pickle is executed.
+
+Project references (including the master build prompt, analysis outputs, screenshots, charts, example interactive map and the professional report) are preserved in the original supplied archive for inspection; those artifacts are not all exposed as unsupported public claims. The report's described regions are treated as **five analytical project regions, not official wards**.
+
+## Imports and persistence
+
+The Data Management page accepts CSV, GeoJSON Feature, and GeoJSON FeatureCollection files up to 50 MB, previews fields and sample rows, asks for CRS confirmation when the source cannot verify WGS84, retains source properties, reports invalid/missing coordinates and deduplicates. GeoPackage is **not accepted directly**; export it to GeoJSON first. Uploaded datasets, features, status, provenance metadata and import events persist in MySQL. Database volume is shared by the configured development and production runtime: deliberate deletions change persisted records. Deleting an uploaded dataset requires explicit confirmation; bundled source datasets cannot be deleted through that control.
+
+The map draws imported OpenStreetMap-derived feature geometries on a local coordinate-grid canvas and credits OpenStreetMap contributors on-map; it does not request OSM tiles. Spatial feature responses are capped per selected category to keep the browser responsive; zoom/pan to refine the viewport. The app does not claim an authoritative ward boundary, verified positional accuracy, time-series changes, live sensors or complete municipal coverage.
+
+## Analyses and AI
+
+Counts and data-quality summaries are deterministic queries over active, successfully imported database records. The clustering comparison uses a documented great-circle (Haversine) nearest-feature method, not travel-network accessibility. “Review source coverage” is a deliberately limited rule-based index using relative feature counts; it is **not** a trained/validated model, need estimate or service-access measurement. Never interpret a smaller count alone as unmet need.
+
+The Geo assistant queries vetted database aggregates and uses only this context for any optional configured managed text-generation step. SQL is parameterized and no model-generated SQL is executed. Without the managed text service, the deterministic, data-grounded answer path remains available.
+
+
+## Windows and VS Code setup
+
+1. Install Node.js 22 LTS. In a new PowerShell terminal, run `corepack enable`, then clone or open this repository in VS Code and open its project directory.
+2. Copy `.env.example` to `.env`; supply `DATABASE_URL` for a MySQL-compatible database and the first-party OAuth variables required by `server/_core/env.ts`. Keep `.env` private. Managed AI is optional; deterministic local answers remain available without an external text-generation service. Never add private values to browser code or Git.
+3. Run `pnpm install --frozen-lockfile`, `pnpm db:migrate`, and `pnpm dev`. The public overview is at `http://localhost:3000`; open `/workspace` to sign in. Managed Preview supplies Manus OAuth settings; local sign-in requires valid server-side OAuth configuration. `pnpm check` and `pnpm build` are the source and production-build checks. A local database is separate from Manus's managed database; schema/data writes affect only the `DATABASE_URL` configured for that process.
+4. Configure `OWNER_OPEN_ID` through the protected project-settings input after signing in to Managed Preview. Dataset writes stay locked until the current account matches this value. The signed-in owner can copy the account identifier from Settings; do not send it in chat. Data bootstrap is restart-safe: after the schema exists, the server streams the supplied compressed source rows into the database once. Do not point a local app at a valuable database without understanding that the tables are shared and persistent.
+
+## Manus-managed preview and deployment
+
+The application uses the selected Manus-managed server/container and its persistent MySQL database. Use the Manus project Preview to review changes. Checkpoint the source on the connected canonical project repository, then use the project's Dashboard publication controls if publication is explicitly wanted. Development and published runtimes share the project database; importing, toggling or deleting data in either environment changes the same records. The MySQL provider is intentionally retained instead of adding an unavailable PostGIS server; viewport filters use indexed, parameterized latitude/longitude and category queries.
+
+Every `/api/geotwin/*` request requires a verified first-party Manus session. Dataset upload, activation and deletion require both the configured `OWNER_OPEN_ID` match and the starter's admin role; if the protected owner identity is unset, write actions are denied. The signed-in owner can copy their account identifier from Settings. The identifier stays in the protected project configuration, never source control. Conversations use an account-derived hash to keep one collaborator from loading another collaborator's history. Keep the site at owner/team access scope. Public exposure of analytical data is not recommended without the project's explicit permission review.
+
+## Map provider decision (2026-10-09)
+
+The map uses supplied feature geometries over a local coordinate-grid base; the grid needs no hosted tile service. It credits OpenStreetMap-derived source records in the attribution control and feature details, but it does **not** request standard OSM raster tiles. Provider terms reviewed for this choice: [OpenStreetMap Standard tile policy](https://operations.osmfoundation.org/policies/tiles/), [CARTO basemap FAQ](https://docs.carto.com/faqs/carto-basemaps) and [OpenStreetMap France usage conditions](https://www.openstreetmap.fr/usage/). Recheck a prospective provider's current attribution, registration, traffic and access restrictions before adding it. The current reference map contains real, interactive source geometries; the intentionally restrained base is not a fabricated street map.
+
+## Source review note
+
+The professional report says zero water-body features, but processed `Nagpur_WaterBodies_Clean.csv` contains 29 records. The project seeds the cleaned CSV and explicitly discloses the discrepancy so reviewers can reconcile it before authoritative use. The project bundle includes 310,008 records across ten clean spatial source tables. Satellite summaries retain their supplied dates/scope and are not promoted to mapped records unless an actual spatial dataset exists.
+
+## SEO readiness and search indexing
+
+The initial HTML at `/` is a public, source-grounded GeoTwinAI overview; the private interactive workspace lives at `/workspace`. The workspace returns `noindex,nofollow`. The server has a root-only sitemap for a configured real public origin. Preview is noncanonical: its SEO gateway disallows crawling and currently withholds `/sitemap.xml` with a gateway placeholder response. Never interpret that Preview response as the final published sitemap.
+
+`GEOTWIN_PUBLIC_ORIGIN` is intentionally blank until the user selects and controls a real HTTPS domain. When set, the server emits the canonical/Open Graph/social-card URLs, WebSite structured data, a root-only sitemap, and crawl rules that exclude APIs. Canonical robots do not block `/workspace`, so crawlers can see its noindex header; authentication still guards every data API. The Webdev SEO gateway owns `/robots.txt` and `/sitemap.xml`; after a domain is attached and the site is published, verify the actual `x-manus-seo-source` and served documents before submitting them. Cloudflare is **not** required for SEO; any suitable domain/host can serve the public page. No public release or DNS change is made by preparing these files.
+
+After a public launch, verify the domain in [Google Search Console](https://search.google.com/search-console/about), submit `https://<your-domain>/sitemap.xml`, and optionally request recrawling of the landing page. [Google's sitemap guide](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap) calls sitemap submission a hint, not a guarantee; [Google's recrawl guide](https://developers.google.com/search/docs/crawling-indexing/ask-google-to-recrawl) says crawling may take days to weeks and inclusion is not guaranteed. Brave's official [Submit URL](https://search.brave.com/submit-url) page lets an owner request that a URL be re-fetched. Neither engine promises indexing, a date or ranking. SEO can make the page eligible and discoverable; it cannot guarantee that typing “GeoTwinAI” returns it immediately, particularly for a new or unlinked domain.

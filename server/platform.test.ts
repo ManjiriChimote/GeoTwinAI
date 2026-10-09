@@ -21,9 +21,10 @@ describe("current platform integration", () => {
     expect(appended).toHaveLength(0);
   });
   it("does not guess a production API when the project environment is absent", async () => {
+    vi.stubEnv("BUILT_IN_FORGE_API_URL", ""); vi.stubEnv("BUILT_IN_FORGE_API_KEY", "");
     vi.stubEnv("MANUS_API_URL", ""); vi.stubEnv("MANUS_API_KEY", "test-only");
     const request = vi.fn(); vi.stubGlobal("fetch", request);
-    await expect(listLLMModels()).rejects.toThrow("MANUS_API_URL");
+    await expect(listLLMModels()).rejects.toThrow("BUILT_IN_FORGE_API_URL");
     expect(request).not.toHaveBeenCalled();
   });
   it("persists URL-only image results through current managed storage", async () => {
