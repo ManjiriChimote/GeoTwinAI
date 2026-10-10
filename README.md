@@ -1,10 +1,10 @@
 # GeoTwinAI — The Living Digital Twin of Nagpur
 
-A source-aware GIS and urban decision-support workspace for the supplied Nagpur study-area data. It is built on the managed Webdev server and MySQL database, React, Leaflet, Express and Drizzle, and requires first-party Manus sign-in. The map uses a local coordinate canvas under real source geometries, not third-party raster tiles. It does **not** represent a live or authoritative model of every part of the city.
+A source-aware GIS and urban decision-support workspace for the supplied Nagpur study-area data. It is built on the managed Webdev server and MySQL database, React, Leaflet, Express and Drizzle, and requires first-party Manus sign-in. Its interactive maps use an OpenStreetMap basemap beneath source-backed GeoTwinAI feature layers. It does **not** represent a live or authoritative model of every part of the city.
 
 ## Run the application
 
-Requirements: Node.js 22, pnpm 10.18, access to a MySQL database via `DATABASE_URL`, and valid Manus OAuth configuration. Manus Preview supplies its managed database, server runtime and session identity. No basemap tile service is required.
+Requirements: Node.js 22, pnpm 10.18, access to a MySQL database via `DATABASE_URL`, and valid Manus OAuth configuration. Manus Preview supplies its managed database, server runtime and session identity. Interactive maps request only the visible OpenStreetMap tiles and show provider attribution.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -29,7 +29,7 @@ Private runtime values (`DATABASE_URL`, optional built-in service credentials an
 
 - `client/public/landing.html`, `landing.css`, `geotwin-og.png` — source-grounded public landing page and social preview card.
 - `client/src/pages/Home.tsx` — primary responsive workspace and section routing.
-- `client/src/components/GeoTwinMap.tsx` — source-backed Leaflet renderer, local coordinate grid, bounded record queries and feature inspection.
+- `client/src/components/GeoTwinMap.tsx` — OpenStreetMap-backed Leaflet renderer, bounded source-record queries and feature inspection.
 - `client/src/components/GeoTwinAuthGate.tsx` — branded Manus sign-in boundary and private-route gate.
 - `client/src/components/DataImportPanel.tsx` — preview, explicit import, registry and history.
 - `client/src/components/GeoAssistant.tsx` — grounded assistant interface and persisted conversations.
@@ -67,7 +67,7 @@ Project references (including the master build prompt, analysis outputs, screens
 
 The Data Management page accepts CSV, GeoJSON Feature, and GeoJSON FeatureCollection files up to 50 MB, previews fields and sample rows, asks for CRS confirmation when the source cannot verify WGS84, retains source properties, reports invalid/missing coordinates and deduplicates. GeoPackage is **not accepted directly**; export it to GeoJSON first. Uploaded datasets, features, status, provenance metadata and import events persist in MySQL. Database volume is shared by the configured development and production runtime: deliberate deletions change persisted records. Deleting an uploaded dataset requires explicit confirmation; bundled source datasets cannot be deleted through that control.
 
-The map draws imported OpenStreetMap-derived feature geometries on a local coordinate-grid canvas and credits OpenStreetMap contributors on-map; it does not request OSM tiles. Spatial feature responses are capped per selected category to keep the browser responsive; zoom/pan to refine the viewport. The app does not claim an authoritative ward boundary, verified positional accuracy, time-series changes, live sensors or complete municipal coverage.
+The private map overlays source-supplied GIS geometries on an interactive OpenStreetMap basemap; the public landing page uses an interactive Nagpur map with no private dataset overlays. Both maps visibly attribute OpenStreetMap contributors. The app loads the visible map view only; it does not offer bulk tile downloads. Spatial feature responses are capped per selected category to keep the browser responsive; zoom/pan to refine the viewport. The app does not claim an authoritative ward boundary, verified positional accuracy, time-series changes, live sensors or complete municipal coverage.
 
 ## Analyses and AI
 
@@ -89,9 +89,9 @@ The application uses the selected Manus-managed server/container and its persist
 
 Every `/api/geotwin/*` request requires a verified first-party Manus session. Dataset upload, activation and deletion require both the configured `OWNER_OPEN_ID` match and the starter's admin role; if the protected owner identity is unset, write actions are denied. The signed-in owner can copy their account identifier from Settings. The identifier stays in the protected project configuration, never source control. Conversations use an account-derived hash to keep one collaborator from loading another collaborator's history. Keep the site at owner/team access scope. Public exposure of analytical data is not recommended without the project's explicit permission review.
 
-## Map provider decision (2026-10-09)
+## Map provider decision (2026-10-10)
 
-The map uses supplied feature geometries over a local coordinate-grid base; the grid needs no hosted tile service. It credits OpenStreetMap-derived source records in the attribution control and feature details, but it does **not** request standard OSM raster tiles. Provider terms reviewed for this choice: [OpenStreetMap Standard tile policy](https://operations.osmfoundation.org/policies/tiles/), [CARTO basemap FAQ](https://docs.carto.com/faqs/carto-basemaps) and [OpenStreetMap France usage conditions](https://www.openstreetmap.fr/usage/). Recheck a prospective provider's current attribution, registration, traffic and access restrictions before adding it. The current reference map contains real, interactive source geometries; the intentionally restrained base is not a fabricated street map.
+The overview and private workspace use Leaflet with the standard HTTPS OpenStreetMap raster map; tiles are fetched for the current interactive view, not prefetched. Visible map attribution links directly to the OpenStreetMap copyright page. The public landing view contains only the public basemap and no private GeoTwinAI data. Provider terms: [OpenStreetMap Standard tile policy](https://operations.osmfoundation.org/policies/tiles/). The project’s Managed Maps proxy rejected the current Preview origin, so the Google maps proxy is not used here.
 
 ## Source review note
 
@@ -101,6 +101,6 @@ The professional report says zero water-body features, but processed `Nagpur_Wat
 
 The initial HTML at `/` is a public, source-grounded GeoTwinAI overview; the private interactive workspace lives at `/workspace`. The workspace returns `noindex,nofollow`. The server has a root-only sitemap for a configured real public origin. Preview is noncanonical: its SEO gateway disallows crawling and currently withholds `/sitemap.xml` with a gateway placeholder response. Never interpret that Preview response as the final published sitemap.
 
-`GEOTWIN_PUBLIC_ORIGIN` is intentionally blank until the user selects and controls a real HTTPS domain. When set, the server emits the canonical/Open Graph/social-card URLs, WebSite structured data, a root-only sitemap, and crawl rules that exclude APIs. Canonical robots do not block `/workspace`, so crawlers can see its noindex header; authentication still guards every data API. The Webdev SEO gateway owns `/robots.txt` and `/sitemap.xml`; after a domain is attached and the site is published, verify the actual `x-manus-seo-source` and served documents before submitting them. Cloudflare is **not** required for SEO; any suitable domain/host can serve the public page. No public release or DNS change is made by preparing these files.
+`GEOTWIN_PUBLIC_ORIGIN` is intentionally blank until the user selects and controls a real HTTPS domain. When set, the server emits the canonical/Open Graph/social-card URLs, WebSite structured data, a root-only sitemap, and crawl rules that exclude APIs. Canonical robots do not block `/workspace`, so crawlers can see its noindex header; authentication still guards every data API. The Webdev SEO gateway owns `/robots.txt` and `/sitemap.xml`; after a domain is attached and the site is published, verify the actual `x-manus-seo-source` and served documents before submitting them. No public release or DNS change is made by preparing these files.
 
 After a public launch, verify the domain in [Google Search Console](https://search.google.com/search-console/about), submit `https://<your-domain>/sitemap.xml`, and optionally request recrawling of the landing page. [Google's sitemap guide](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap) calls sitemap submission a hint, not a guarantee; [Google's recrawl guide](https://developers.google.com/search/docs/crawling-indexing/ask-google-to-recrawl) says crawling may take days to weeks and inclusion is not guaranteed. Brave's official [Submit URL](https://search.brave.com/submit-url) page lets an owner request that a URL be re-fetched. Neither engine promises indexing, a date or ranking. SEO can make the page eligible and discoverable; it cannot guarantee that typing “GeoTwinAI” returns it immediately, particularly for a new or unlinked domain.

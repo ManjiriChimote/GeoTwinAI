@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AttributionControl, GeoJSON, MapContainer, ScaleControl, useMap, useMapEvents, ZoomControl } from "react-leaflet";
+import { AttributionControl, GeoJSON, MapContainer, ScaleControl, TileLayer, useMap, useMapEvents, ZoomControl } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import wellknown from "wellknown";
@@ -32,32 +32,6 @@ type Props = {
   onFeatures?: (features: GeoFeature[]) => void;
   onMissingLayerClick?: () => void;
 };
-
-class CoordinateGridLayer extends L.GridLayer {
-  createTile(coords: L.Coords, done?: L.DoneCallback): HTMLElement {
-    const tile = document.createElement("div");
-    tile.className = "geotwin-coordinate-tile";
-    const size = this.getTileSize();
-    const spacing = coords.z < 10 ? 72 : coords.z < 14 ? 96 : 120;
-    tile.style.backgroundSize = `${spacing}px ${spacing}px`;
-    tile.style.backgroundPosition = `${-((coords.x * size.x) % spacing)}px ${-((coords.y * size.y) % spacing)}px`;
-    done?.(undefined, tile);
-    return tile;
-  }
-}
-
-function CoordinateGrid() {
-  const map = useMap();
-  useEffect(() => {
-    const layer = new CoordinateGridLayer({
-      maxZoom: 19,
-      attribution: `Coordinate grid · supplied source geometries · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors (source attribution)</a>`,
-    });
-    layer.addTo(map);
-    return () => { map.removeLayer(layer); };
-  }, [map]);
-  return null;
-}
 
 function geometryFromRecord(record: GeoFeature): Geometry | null {
   if (record.geometry?.trim()) {
@@ -160,7 +134,12 @@ export default function GeoTwinMap({ region, search = "", fitToken, focusCategor
       </div>
       <div className="map-canvas-wrap">
         <MapContainer center={[21.1458, 79.0882]} zoom={12} zoomControl={false} scrollWheelZoom className="map-canvas" preferCanvas>
-          <CoordinateGrid />
+          <TileLayer
+            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'
+            maxZoom={19}
+            detectRetina
+          />
           <AttributionControl position="bottomright" prefix={false} />
           <ZoomControl position="bottomright" />
           <ScaleControl position="bottomleft" metric imperial={false} />
@@ -194,7 +173,7 @@ export default function GeoTwinMap({ region, search = "", fitToken, focusCategor
         {loading && <div className="map-loading"><LoaderCircle size={15} className="spin" /><span>Querying the visible extent…</span></div>}
         {!loading && !error && dataStatus && <div className="map-record-count"><MapPin size={12} />{dataStatus}</div>}
       </div>
-      <div className="map-footer"><span><i className="source-dot" /> Supplied OSM-derived geometries · local coordinate grid</span><span>{showingCitywideEnvironmentalRows ? "City-wide environmental samples remain separate from analytical region records." : "Pan or zoom to query another area"}</span></div>
+      <div className="map-footer"><span><i className="source-dot" /> OpenStreetMap basemap · project-supplied GIS layers</span><span>{showingCitywideEnvironmentalRows ? "City-wide environmental samples remain separate from analytical region records." : "Pan or zoom to query another area"}</span></div>
     </div>
   );
 }

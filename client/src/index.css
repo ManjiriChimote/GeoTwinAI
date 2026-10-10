@@ -743,8 +743,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .read-only-callout { padding:9px 11px; border:1px solid #ded9cc; border-radius:6px; background:#f4f1e9; color:#737267; font:400 9px/1.55 'Inter',sans-serif; }
 .settings-account-panel .read-only-callout { margin-top:10px; }
 
-/* Source geometries stay spatially honest without a hosted raster basemap */
-.geotwin-coordinate-tile { width:256px; height:256px; background-image:linear-gradient(to right,rgba(111,125,111,.14) 1px,transparent 1px),linear-gradient(to bottom,rgba(111,125,111,.14) 1px,transparent 1px),linear-gradient(to right,rgba(111,125,111,.045) 1px,transparent 1px),linear-gradient(to bottom,rgba(111,125,111,.045) 1px,transparent 1px); background-repeat:repeat; pointer-events:none; }
+/* Leaflet basemap and GIS overlay controls */
 .map-canvas { background:#efede4!important; }
 .leaflet-control-attribution { max-width:70vw; padding:2px 5px!important; border:1px solid #ded9ce; border-radius:4px 0 0 0; background:rgba(250,248,242,.92)!important; color:#74766e!important; font:400 7px 'DM Mono',monospace!important; }
 .leaflet-control-attribution a { color:#526f6b!important; }

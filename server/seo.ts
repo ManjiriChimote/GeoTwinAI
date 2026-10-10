@@ -42,7 +42,7 @@ export function injectPublicSeoHead(template: string, origin: string | null) {
     `<meta property="og:image:width" content="1200" />`,
     `<meta property="og:image:height" content="630" />`,
     `<meta name="twitter:image" content="${image}" />`,
-    `<meta name="twitter:image:alt" content="GeoTwinAI cartographic study sketch; illustrative, not a geographic map" />`,
+    `<meta name="twitter:image:alt" content="GeoTwinAI cartographic illustration for its Nagpur urban GIS workspace" />`,
   ].join("\n    ");
   const webSiteSchema = JSON.stringify({
     "@context": "https://schema.org",
