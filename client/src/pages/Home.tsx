@@ -178,27 +178,11 @@ export default function Home({ accountName, accountEmail, accountId, onLogout }:
   const copyOwnerIdentity = async () => { const identity = String(accountId); try { await navigator.clipboard.writeText(identity); setAccessNote("Account ID copied. Enter it only as GEOTWIN_OWNER_ACCOUNT_ID in protected project settings."); } catch { window.prompt("Copy this account ID into GEOTWIN_OWNER_ACCOUNT_ID in protected project settings. Do not paste it into chat.", identity); } };
   const navigate = (next: Page) => { setPage(next); setMobileNav(false); setExploreSearch(""); };
 
-  useEffect(() => {
-    if (!mobileNav) return;
-    const priorOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setMobileNav(false);
-      window.requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(".mobile-menu")?.focus());
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = priorOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [mobileNav]);
-
   const SectionTitle = ({ label, title, copy, action }: { label: string; title: string; copy?: string; action?: React.ReactNode }) => <div className="section-head"><div><span className="eyebrow">{label}</span><h1>{title}</h1>{copy && <p>{copy}</p>}</div>{action}</div>;
   const RegionControls = ({ isMobile = false }: { isMobile?: boolean }) => <div className={`region-list ${isMobile ? "region-list-mobile" : ""}`}>{regionChoices.map((item,index)=><button key={item} className={`region-button ${region===item?"is-selected":""}`} onClick={()=>setRegion(item)}><span className="region-index">{String(index).padStart(2,"0")}</span><span>{item}</span>{region===item&&<i />}</button>)}</div>;
 
   return <main className={`geotwin-shell ${hideRail ? "rail-collapsed" : ""}`}>
-      <aside id="workspace-navigation" className={`side-rail ${mobileNav?"mobile-open":""}`}>
+    <aside className={`side-rail ${mobileNav?"mobile-open":""}`}>
       <div className="brand-lockup"><img className="logo-emblem" src="/geotwin-emblem.png" alt=""/><img className="logo-wordmark" src="/geotwin-wordmark.png" alt="GeoTwinAI — The Living Digital Twin of Nagpur"/><button className="rail-close" onClick={()=>setMobileNav(false)} aria-label="Close navigation"><X size={17}/></button></div>
       <div className="rail-divider" />
       <div className="region-section"><div className="rail-heading"><span>REGION FILTER</span><span className="region-total">05</span></div><RegionControls /></div>
@@ -208,7 +192,7 @@ export default function Home({ accountName, accountEmail, accountId, onLogout }:
     </aside>
     {mobileNav&&<button className="mobile-scrim" aria-label="Close navigation" onClick={()=>setMobileNav(false)}/>}
     <section className="work-area">
-      <header className="topbar"><div className="topbar-leading"><button type="button" className="icon-btn mobile-menu" onClick={()=>setMobileNav(v=>!v)} aria-label={mobileNav?"Close navigation":"Open navigation"} aria-expanded={mobileNav} aria-controls="workspace-navigation"><Menu size={20}/></button><button className="icon-btn collapse-rail" title={hideRail?"Show sidebar":"Hide sidebar"} aria-label={hideRail?"Show sidebar":"Hide sidebar"} onClick={()=>setHideRail(v=>!v)}><PanelLeftClose size={17}/></button><span className="topbar-label">PHYSICAL DIGITAL TWIN</span><span className="topbar-dot"/><span className="topbar-tagline">OBSERVE&nbsp; · &nbsp;EXPLORE&nbsp; · &nbsp;UNDERSTAND</span></div><div className="topbar-tools"><span className="sync-status"><i className={`status-dot ${initializing?"dot-pending":"dot-live"}`}/>{initializing?"SYNCING SOURCE RECORDS":databaseReady?"DATABASE CONNECTED":"DATABASE OFFLINE"}</span><button className="outline-btn new-analysis" onClick={()=>page==="Analyze"?void runAnalysis("regional"):navigate("Analyze")}><Activity size={15}/>New analysis</button><button className="account-role-pill" onClick={()=>navigate("Settings")} title={`Signed in as ${accountName}`}>{canManage?"PROJECT OWNER":"READ ONLY"}</button><button className="icon-btn signout-btn" onClick={()=>void onLogout()} aria-label={`Sign out ${accountName}`} title="Sign out"><LogOut size={16}/></button></div></header>
+      <header className="topbar"><div className="topbar-leading"><button className="icon-btn mobile-menu" onClick={()=>setMobileNav(true)} aria-label="Open navigation"><Menu size={20}/></button><button className="icon-btn collapse-rail" title={hideRail?"Show sidebar":"Hide sidebar"} aria-label={hideRail?"Show sidebar":"Hide sidebar"} onClick={()=>setHideRail(v=>!v)}><PanelLeftClose size={17}/></button><span className="topbar-label">PHYSICAL DIGITAL TWIN</span><span className="topbar-dot"/><span className="topbar-tagline">OBSERVE&nbsp; · &nbsp;EXPLORE&nbsp; · &nbsp;UNDERSTAND</span></div><div className="topbar-tools"><span className="sync-status"><i className={`status-dot ${initializing?"dot-pending":"dot-live"}`}/>{initializing?"SYNCING SOURCE RECORDS":databaseReady?"DATABASE CONNECTED":"DATABASE OFFLINE"}</span><button className="outline-btn new-analysis" onClick={()=>page==="Analyze"?void runAnalysis("regional"):navigate("Analyze")}><Activity size={15}/>New analysis</button><button className="account-role-pill" onClick={()=>navigate("Settings")} title={`Signed in as ${accountName}`}>{canManage?"PROJECT OWNER":"READ ONLY"}</button><button className="icon-btn signout-btn" onClick={()=>void onLogout()} aria-label={`Sign out ${accountName}`} title="Sign out"><LogOut size={16}/></button></div></header>
       <div className="workspace-scroll"><div className="workspace-inner">
         {error && !databaseReady && <div className="global-notice"><Database size={16}/><span>{initializing?"The source registry is loading. The map will fill as records arrive.":error}</span><button onClick={()=>void refreshData()}><RefreshCw size={14}/>Retry</button></div>}
 

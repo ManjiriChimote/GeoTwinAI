@@ -27,10 +27,7 @@
         <img class="logo-emblem" src="/geotwin-emblem.png" width="44" height="44" alt="" />
         <img class="logo-wordmark" src="/geotwin-wordmark.png" alt="GeoTwinAI — The Living Digital Twin of Nagpur" />
       </a>
-      <button class="menu-toggle" id="site-menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="site-navigation">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
-      </button>
-      <nav id="site-navigation" aria-label="Main navigation">
+      <nav aria-label="Main navigation">
         <a class="nav-link" href="#approach">Approach</a>
         <a class="nav-link" href="#scope">Data &amp; limits</a>
         <a class="nav-cta" href="/workspace">Private workspace <span aria-hidden="true">↗</span></a>
@@ -75,37 +72,5 @@
     </main>
 
     <footer class="site-footer"><a class="footer-brand" href="/">GeoTwinAI</a><span>PHYSICAL DIGITAL TWIN · NAGPUR</span><span>Project data, clearly bounded.</span></footer>
-    <script>
-      (() => {
-        const button = document.getElementById("site-menu-toggle");
-        const navigation = document.getElementById("site-navigation");
-        const header = document.querySelector(".site-header");
-        if (!button || !navigation || !header) return;
-        const closeMenu = (restoreFocus = false) => {
-          navigation.classList.remove("is-open");
-          button.setAttribute("aria-expanded", "false");
-          button.setAttribute("aria-label", "Open navigation");
-          if (restoreFocus) button.focus();
-        };
-        button.addEventListener("click", () => {
-          const open = button.getAttribute("aria-expanded") !== "true";
-          navigation.classList.toggle("is-open", open);
-          button.setAttribute("aria-expanded", String(open));
-          button.setAttribute("aria-label", open ? "Close navigation" : "Open navigation");
-        });
-        navigation.addEventListener("click", event => {
-          if (event.target instanceof Element && event.target.closest("a")) closeMenu();
-        });
-        document.addEventListener("pointerdown", event => {
-          if (button.getAttribute("aria-expanded") === "true" && event.target instanceof Node && !header.contains(event.target)) closeMenu();
-        });
-        document.addEventListener("keydown", event => {
-          if (event.key === "Escape" && button.getAttribute("aria-expanded") === "true") closeMenu(true);
-        });
-        window.matchMedia("(min-width: 561px)").addEventListener("change", event => {
-          if (event.matches) closeMenu();
-        });
-      })();
-    </script>
   </body>
 </html>
