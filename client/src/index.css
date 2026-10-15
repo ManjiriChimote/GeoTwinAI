@@ -651,11 +651,14 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
  .metric-text>span { font-size:5.5px; }
  .metric-text>strong { font-size:15px; }
  .metric-glyph { width:21px; height:21px; }
- .map-layer-chip { gap:4px; padding:0 5px; font-size:7px; }
+ .map-layer-menu { max-width:calc(100% - 128px); gap:2px; padding:3px; }
+ .map-layer-chip { gap:3px; padding:0 4px; font-size:8px; }
  .map-title-tools { gap:4px; }
  .topbar-tools { gap:8px; }
 }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; } }
+
+.map-layer-chip:focus-visible { outline:2px solid #527c8c; outline-offset:1px; }
 
 
 /* Source evidence and explicit reporting controls */

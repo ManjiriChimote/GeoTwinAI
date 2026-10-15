@@ -6,18 +6,8 @@ import wellknown from "wellknown";
 import type { Feature as GeoJsonFeature, FeatureCollection, Geometry } from "geojson";
 import { Layers3, LocateFixed, LoaderCircle, MapPin } from "lucide-react";
 import { apiJson, GEO_TWIN_AUTH_EXPIRED_EVENT, type Category, type GeoFeature } from "@/lib/geotwin-api";
+import { categoryColor, defaultMapCategories, mapLayerOptions } from "@/lib/map-layers";
 
-const categoryColor: Record<string, string> = {
-  Buildings: "#9b8068", Roads: "#527c8c", Hospitals: "#c66a5b", Schools: "#7287a0", Parks: "#778c69",
-  "Water bodies": "#648fa0", "Green cover": "#829774", "Flood risk": "#c66a5b", "Built-up": "#867f76", NDVI: "#9aa969",
-};
-const supportedLayers: { name: string; categories: Category[]; label: string; color: string }[] = [
-  { name: "Buildings", categories: ["Buildings", "Built-up"], label: "Buildings", color: categoryColor.Buildings },
-  { name: "Roads", categories: ["Roads"], label: "Roads", color: categoryColor.Roads },
-  { name: "Green", categories: ["Parks", "Green cover", "NDVI"], label: "Green", color: categoryColor["Green cover"] },
-  { name: "Water", categories: ["Water bodies"], label: "Water", color: categoryColor["Water bodies"] },
-  { name: "Risk", categories: ["Flood risk"], label: "Risk", color: categoryColor["Flood risk"] },
-];
 export type BoundsBox = { west: number; east: number; south: number; north: number };
 
 type Props = {
@@ -91,7 +81,7 @@ function FitButton({ token, features }: { token?: number; features: GeoFeature[]
 }
 
 export default function GeoTwinMap({ region, search = "", fitToken, focusCategory, focusToken, onFeatures, onMissingLayerClick, className = "" }: Props) {
-  const [layers, setLayers] = useState<Category[]>(["Buildings", "Built-up", "Roads", "Parks", "Green cover", "NDVI", "Water bodies", "Flood risk"]);
+  const [layers, setLayers] = useState<Category[]>(defaultMapCategories);
   const [features, setFeatures] = useState<GeoFeature[]>([]);
   const [bounds, setBounds] = useState<BoundsBox | null>(null);
   const [loading, setLoading] = useState(false);
@@ -135,7 +125,7 @@ export default function GeoTwinMap({ region, search = "", fitToken, focusCategor
       if (!geometry) continue;
       (grouped[record.category] ??= []).push({ type: "Feature", geometry, properties: { ...record.properties, _record: record, name: record.name, region: record.region, category: record.category } });
     }
-    return Object.entries(grouped).map(([category, items]) => ({ category, collection: { type: "FeatureCollection" as const, features: items } as FeatureCollection<Geometry, Record<string, unknown>> }));
+    return Object.entries(grouped).map(([category, items]) => ({ category: category as Category, collection: { type: "FeatureCollection" as const, features: items } as FeatureCollection<Geometry, Record<string, unknown>> }));
   }, [features]);
 
   useEffect(() => {
@@ -192,7 +182,7 @@ export default function GeoTwinMap({ region, search = "", fitToken, focusCategor
         <div className="map-overlay-top-left"><div className="map-coordinate"><span>STUDY CENTER</span><strong>21°08′45″ N&nbsp; · &nbsp;79°05′18″ E</strong></div><span className="map-grid-tag">WGS84 / EPSG:4326*</span></div>
         <div className="map-layer-menu" aria-label="Toggle map layers">
           <div className="map-layers-label"><Layers3 size={14} /><span>LAYERS</span></div>
-          {supportedLayers.map(layer => {
+          {mapLayerOptions.map(layer => {
             const available = availableCategories === null || layer.categories.some(category => availableCategories.includes(category));
             const active = layer.categories.some(category => layers.includes(category));
             return <button type="button" key={layer.name} aria-pressed={active} className={`map-layer-chip ${active ? "is-active" : ""} ${!available ? "is-unavailable" : ""}`} onClick={() => available ? toggleLayer(layer.categories) : onMissingLayerClick?.()} title={available ? `Toggle ${layer.label}` : `${layer.label} is unavailable — open Data Management to upload records`}><span style={{ background: layer.color }} />{layer.label}<i /></button>;

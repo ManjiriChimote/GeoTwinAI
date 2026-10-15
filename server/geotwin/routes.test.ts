@@ -83,4 +83,44 @@ describe("GeoTwinAI internal map feature endpoint", () => {
       await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     }
   });
+
+  it("returns buildings, hospitals and schools as separate selectable map layers", async () => {
+    const requested = ["Buildings", "Hospitals", "Schools"];
+    const rowFor = (category: string) => ({
+      id: requested.indexOf(category) + 1,
+      category,
+      region: "Central",
+      name: `Sample ${category.toLowerCase()}`,
+      latitude: 21.1458,
+      longitude: 79.0882,
+      geometry_type: "Point",
+      geometry: "POINT (79.0882 21.1458)",
+      properties: JSON.stringify({ source: `${category}.csv` }),
+      dataset: `Nagpur ${category}`,
+      sourceFile: `${category}.csv`,
+    });
+    const execute = vi.fn(async (sql: string, params: unknown[] = []) => {
+      if (sql.includes("SELECT DISTINCT f.category")) return [[...requested.map(category => ({ category }))], []];
+      if (sql.startsWith("SELECT COUNT(*) AS count")) return [[{ count: 1 }], []];
+      return [[rowFor(String(params[0]))], []];
+    });
+    mocks.getPool.mockReturnValue({ execute });
+    mocks.authenticate.mockResolvedValue({ openId: "test-viewer", name: "Map test", role: "user", isCron: false });
+
+    const app = express();
+    registerGeoTwinRoutes(app);
+    const server = app.listen(0, "127.0.0.1");
+    await new Promise<void>(resolve => server.once("listening", resolve));
+    const { port } = server.address() as { port: number };
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/api/geotwin/features?categories=${requested.join(",")}&west=79.04&east=79.15&south=21.10&north=21.20`);
+      expect(response.status).toBe(200);
+      const body = await response.json() as { features: { category: string; geometry: string }[]; availableCategories: string[] };
+      expect(body.availableCategories).toEqual(expect.arrayContaining(requested));
+      expect(body.features.map(feature => feature.category)).toEqual(requested);
+      expect(body.features.every(feature => feature.geometry.startsWith("POINT"))).toBe(true);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    }
+  });
 });
