@@ -1,10 +1,10 @@
 # GeoTwinAI — The Living Digital Twin of Nagpur
 
-A source-aware GIS and urban decision-support workspace for the supplied Nagpur study-area data. It is built on the managed Webdev server and MySQL database, React, Leaflet, Express and Drizzle, and requires first-party Manus sign-in. Its interactive maps use an OpenStreetMap basemap beneath source-backed GeoTwinAI feature layers. It does **not** represent a live or authoritative model of every part of the city.
+A source-aware GIS and urban decision-support workspace for the supplied Nagpur study-area data. It is built on the managed Webdev server and MySQL database, React, Leaflet, Express and Drizzle, and includes first-party email/password accounts with persistent server-side sessions. Its interactive maps use an OpenStreetMap basemap beneath source-backed GeoTwinAI feature layers. It does **not** represent a live or authoritative model of every part of the city.
 
 ## Run the application
 
-Requirements: Node.js 22, pnpm 10.18, access to a MySQL database via `DATABASE_URL`, and valid Manus OAuth configuration. Manus Preview supplies its managed database, server runtime and session identity. Interactive maps request only the visible OpenStreetMap tiles and show provider attribution.
+Requirements: Node.js 22, pnpm 10.18, and access to a MySQL database via `DATABASE_URL`. The email/password account flow is part of the application and does not require Manus OAuth or another external identity provider. Manus Preview supplies the managed database and server runtime. Interactive maps request only the visible OpenStreetMap tiles and show provider attribution.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -30,7 +30,7 @@ Private runtime values (`DATABASE_URL`, optional built-in service credentials an
 - `client/public/landing.html`, `landing.css`, `geotwin-og.png` — source-grounded public landing page and social preview card.
 - `client/src/pages/Home.tsx` — primary responsive workspace and section routing.
 - `client/src/components/GeoTwinMap.tsx` — OpenStreetMap-backed Leaflet renderer, bounded source-record queries and feature inspection.
-- `client/src/components/GeoTwinAuthGate.tsx` — branded Manus sign-in boundary and private-route gate.
+- `client/src/components/GeoTwinAuthGate.tsx` — branded email/password sign-in/signup boundary and private-route gate.
 - `client/src/components/DataImportPanel.tsx` — preview, explicit import, registry and history.
 - `client/src/components/GeoAssistant.tsx` — grounded assistant interface and persisted conversations.
 - `client/src/lib/geotwin-api.ts` — typed HTTP contracts.
