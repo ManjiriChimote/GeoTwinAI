@@ -8,7 +8,7 @@ import multer from "multer";
 import { parse as parseCsv } from "csv-parse";
 import { getPool, parseJson } from "./database";
 import { invokeLLM } from "../_core/llm";
-import { sdk, type AuthenticatedUser } from "../_core/sdk";
+import { geoTwinCsrfMiddleware, geoTwinSessionMiddleware, type GeoTwinPrincipal } from "./auth";
 import { ENV } from "../_core/env";
 import { ALL_CATEGORIES, ANALYTICAL_REGIONS, CORE_CATEGORIES, findColumn, identifyCategory, isValidWgs84, normalizeKey, numberOrNull, parseWktPoint, safeName, type Category } from "./shared";
 import type { RowDataPacket } from "mysql2/promise";
@@ -44,24 +44,26 @@ function getDatabase() {
   return pool;
 }
 
-function signedInUser(res: Response): AuthenticatedUser | null {
-  return (res.locals.geotwinUser as AuthenticatedUser | undefined) ?? null;
+function signedInUser(res: Response): GeoTwinPrincipal | null {
+  return (res.locals.geotwinUser as GeoTwinPrincipal | undefined) ?? null;
 }
 
 function isProjectOwner(res: Response): boolean {
   const user = signedInUser(res);
-  return Boolean(user && ENV.ownerOpenId && user.openId === ENV.ownerOpenId && user.role === "admin");
+  const ownerId = Number(ENV.ownerAccountId);
+  const ownerEmail = ENV.ownerEmail.trim().toLowerCase();
+  return Boolean(user && ownerEmail && ENV.ownerAccountId.trim() && Number.isSafeInteger(ownerId) && ownerId > 0 && user.accountId === ownerId && user.email.toLowerCase() === ownerEmail && user.role === "admin");
 }
 
 const ownerOnly: RequestHandler = (_req, res, next) => {
   if (!isProjectOwner(res)) {
-    const ownerConfigured = Boolean(ENV.ownerOpenId.trim());
-    return res.status(403).json({ error: ownerConfigured ? "Only the configured project owner can change shared datasets." : "Dataset changes are locked until the project owner is configured through the protected project settings." });
+    const ownerConfigured = Boolean(ENV.ownerAccountId.trim() && ENV.ownerEmail.trim());
+    return res.status(403).json({ error: ownerConfigured ? "Only the account bound as project owner can change shared datasets." : "Dataset changes are locked until a project owner account is bound in protected project settings." });
   }
   return next();
 };
 
-function accountConversationId(rawId: string, user: AuthenticatedUser): string {
+function accountConversationId(rawId: string, user: GeoTwinPrincipal): string {
   return createHash("sha256").update(`${user.openId}\u0000${rawId}`).digest("hex");
 }
 
@@ -159,19 +161,13 @@ async function readJsonFile(file: Express.Multer.File) {
 }
 
 export function registerGeoTwinRoutes(app: Express) {
-  app.use("/api/geotwin", (req, res, next) => {
-    void sdk.authenticateRequest(req).then(user => {
-      if (user.isCron) return res.status(403).json({ error: "Scheduled identities cannot use the interactive workspace." });
-      res.locals.geotwinUser = user;
-      return next();
-    }).catch(() => res.status(401).json({ error: "Sign in with your Manus account to access this private GeoTwinAI workspace." }));
-  });
+  app.use("/api/geotwin", geoTwinSessionMiddleware, geoTwinCsrfMiddleware);
 
   app.get("/api/geotwin/status", asyncRoute(async (_req, res) => {
     const pool = getPool();
     const aiConfigured = Boolean(ENV.forgeApiUrl.trim() && ENV.forgeApiKey.trim());
     const canManage = isProjectOwner(res);
-    const ownerSetupRequired = !ENV.ownerOpenId.trim();
+    const ownerSetupRequired = !ENV.ownerAccountId.trim() || !ENV.ownerEmail.trim();
     if (!pool) return res.status(503).json({ database: false, seeded: false, aiConfigured, canManage, ownerSetupRequired, message: "The managed database connection is not configured." });
     try {
       const [[datasetCount]] = await pool.query<RowDataPacket[]>("SELECT COUNT(*) AS count FROM geotwin_datasets WHERE status='ready'");

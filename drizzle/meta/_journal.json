@@ -15,6 +15,13 @@
       "when": 1791548450004,
       "tag": "0001_perpetual_blindfold",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1791626861378,
+      "tag": "0002_geo_auth_accounts",
+      "breakpoints": true
     }
   ]
 }

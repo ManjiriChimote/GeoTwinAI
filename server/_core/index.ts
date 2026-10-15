@@ -1,13 +1,10 @@
 import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
-import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerOAuthRoutes } from "./oauth";
 import { publicPlatformScript } from "./publicConfig";
-import { appRouter } from "../routers";
-import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { registerGeoTwinRoutes } from "../geotwin/routes";
+import { registerGeoTwinAuthRoutes } from "../geotwin/auth";
 import { registerPublicSeoRoutes } from "../seo";
 import { seedProjectData } from "../geotwin/database";
 
@@ -21,16 +18,8 @@ async function startServer() {
   app.get("/api/platform/config.js", (_req, res) => {
     res.set("Cache-Control", "no-store").type("application/javascript").send(publicPlatformScript());
   });
-  registerOAuthRoutes(app);
+  registerGeoTwinAuthRoutes(app);
   registerGeoTwinRoutes(app);
-  // tRPC API
-  app.use(
-    "/api/trpc",
-    createExpressMiddleware({
-      router: appRouter,
-      createContext,
-    })
-  );
   registerPublicSeoRoutes(app);
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {

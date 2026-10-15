@@ -27,17 +27,23 @@ export type GeoTwinReport = { reportDate: string; region: string; indicators: Re
 export type DatasetResponse = { datasets: Dataset[]; imports: ImportItem[] };
 export type GeoAction = { type: "layer"; category: Category } | { type: "section"; section: Page } | null;
 
+export type GeoTwinAccount = { id: number; accountId: number; openId: string; name: string; email: string; role: "user" | "admin" };
+export const GEO_TWIN_AUTH_EXPIRED_EVENT = "geotwin-auth-expired";
+export const GEO_TWIN_CSRF_HEADER = "x-geotwin-csrf-token";
+let csrfToken = "";
+export const setGeoTwinCsrfToken = (token: string) => { csrfToken = token; };
+export function geoTwinCsrfHeaders(method: string): Record<string, string> {
+  return !["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase()) && csrfToken ? { [GEO_TWIN_CSRF_HEADER]: csrfToken } : {};
+}
+
 export async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (init?.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
-  if (!headers.has("Authorization") && typeof window !== "undefined") {
-    try {
-      const previewToken = sessionStorage.getItem("manus-cookie");
-      if (previewToken) headers.set("Authorization", `Bearer ${previewToken}`);
-    } catch {}
-  }
+  const method = (init?.method ?? "GET").toUpperCase();
+  for (const [name, value] of Object.entries(geoTwinCsrfHeaders(method))) headers.set(name, value);
   const response = await fetch(url, { ...init, headers, credentials: init?.credentials ?? "same-origin" });
   const body = await response.json().catch(() => ({}));
+  if (response.status === 401 && !url.includes("/api/geotwin/auth/") && typeof window !== "undefined") window.dispatchEvent(new Event(GEO_TWIN_AUTH_EXPIRED_EVENT));
   if (!response.ok) throw new Error(body?.error || body?.message || `Request failed (${response.status})`);
   return body as T;
 }

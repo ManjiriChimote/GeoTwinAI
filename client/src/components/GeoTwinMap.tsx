@@ -5,7 +5,7 @@ import "leaflet/dist/leaflet.css";
 import wellknown from "wellknown";
 import type { Feature as GeoJsonFeature, FeatureCollection, Geometry } from "geojson";
 import { Layers3, LocateFixed, LoaderCircle, MapPin } from "lucide-react";
-import { apiJson, type Category, type GeoFeature } from "@/lib/geotwin-api";
+import { apiJson, GEO_TWIN_AUTH_EXPIRED_EVENT, type Category, type GeoFeature } from "@/lib/geotwin-api";
 
 const categoryColor: Record<string, string> = {
   Buildings: "#9b8068", Roads: "#527c8c", Hospitals: "#c66a5b", Schools: "#7287a0", Parks: "#778c69",
@@ -49,11 +49,35 @@ function geometryFromRecord(record: GeoFeature): Geometry | null {
     : null;
 }
 function MapStateListener({ onBounds }: { onBounds: (bounds: BoundsBox) => void }) {
-  const update = useCallback((map: L.Map) => {
-    const bounds = map.getBounds();
+  const map = useMap();
+  const update = useCallback((target: L.Map) => {
+    const rect = target.getContainer().getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return;
+    const bounds = target.getBounds();
     onBounds({ west: bounds.getWest(), east: bounds.getEast(), south: bounds.getSouth(), north: bounds.getNorth() });
   }, [onBounds]);
   useMapEvents({ moveend(e) { update(e.target as L.Map); }, zoomend(e) { update(e.target as L.Map); } });
+  useEffect(() => {
+    const container = map.getContainer();
+    let frame = 0;
+    const refresh = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        if (!container.isConnected) return;
+        map.invalidateSize({ pan: false });
+        update(map);
+      });
+    };
+    refresh();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(refresh);
+    observer?.observe(container);
+    window.addEventListener("orientationchange", refresh);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener("orientationchange", refresh);
+    };
+  }, [map, update]);
   return null;
 }
 function FitButton({ token, features }: { token?: number; features: GeoFeature[] }) {
@@ -72,13 +96,14 @@ export default function GeoTwinMap({ region, search = "", fitToken, focusCategor
   const [bounds, setBounds] = useState<BoundsBox | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [selected, setSelected] = useState<GeoFeature | null>(null);
   const [dataStatus, setDataStatus] = useState("");
   const [availableCategories, setAvailableCategories] = useState<Category[] | null>(null);
 
   const load = useCallback(async (box: BoundsBox | null, signal?: AbortSignal) => {
     if (!layers.length) { setFeatures([]); setDataStatus("All map layers are hidden."); onFeatures?.([]); return; }
-    setLoading(true); setError("");
+    setLoading(true); setError(""); setSessionExpired(false);
     const params = new URLSearchParams({ categories: layers.join(","), region, search: search.trim() });
     if (box) Object.entries(box).forEach(([key, value]) => params.set(key, String(value)));
     try {
@@ -88,7 +113,12 @@ export default function GeoTwinMap({ region, search = "", fitToken, focusCategor
       onFeatures?.(body.features);
       setDataStatus(body.truncated ? `Showing ${body.loaded.toLocaleString()} of ${body.count.toLocaleString()} records in this extent · zoom in for detail` : body.count ? `${body.count.toLocaleString()} records in this view` : "No records in this view");
     } catch (e) {
-      if (!(e instanceof DOMException && e.name === "AbortError")) setError(e instanceof Error ? e.message : "The map data could not be loaded.");
+      if (!(e instanceof DOMException && e.name === "AbortError")) {
+        const message = e instanceof Error ? e.message : "The map data could not be loaded.";
+        const needsLogin = /sign in|session.*(expired|missing)|no active geotwinai account/i.test(message);
+        setSessionExpired(needsLogin);
+        setError(needsLogin ? "Your private data session has ended. Sign in again to reload map features." : message);
+      }
     } finally { if (!signal?.aborted) setLoading(false); }
   }, [layers, onFeatures, region, search]);
 
@@ -169,7 +199,7 @@ export default function GeoTwinMap({ region, search = "", fitToken, focusCategor
           })}
         </div>
         {selected && <div className="feature-inspector"><button onClick={() => setSelected(null)} aria-label="Close feature details" className="inspector-close">×</button><span className="eyebrow">FEATURE RECORD · {selected.category}</span><strong>{selected.name || selected.category}</strong><span>{selected.region || "Region not provided"} · {selected.dataset}</span><small className="feature-source-file">{selected.sourceFile}</small><code>{selected.latitude.toFixed(5)}, {selected.longitude.toFixed(5)}</code><dl>{Object.entries(selected.properties ?? {}).slice(0, 4).map(([key, value]) => <div key={key}><dt>{key.replace(/_/g, " ")}</dt><dd>{String(value).slice(0, 76)}</dd></div>)}</dl></div>}
-        {error && <div className="map-error"><span>{error}</span><button onClick={() => void load(bounds)}>Retry</button></div>}
+        {error && <div className="map-error" role="alert"><span>{error}</span><button onClick={() => sessionExpired ? window.dispatchEvent(new Event(GEO_TWIN_AUTH_EXPIRED_EVENT)) : void load(bounds)}>{sessionExpired ? "Return to sign in" : "Retry"}</button></div>}
         {loading && <div className="map-loading"><LoaderCircle size={15} className="spin" /><span>Querying the visible extent…</span></div>}
         {!loading && !error && dataStatus && <div className="map-record-count"><MapPin size={12} />{dataStatus}</div>}
       </div>

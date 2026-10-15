@@ -117,3 +117,29 @@ export const geoChatMessages = mysqlTable("geotwin_chat_messages", {
 }, table => ({
   conversationIdx: index("geotwin_chat_conversation_idx").on(table.conversationId, table.id),
 }));
+
+/** First-party email/password accounts for the GeoTwinAI workspace. */
+export const geoTwinAccounts = mysqlTable("geotwin_accounts", {
+  id: int("id").autoincrement().primaryKey(),
+  email: varchar("email", { length: 254 }).notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+  termsVersion: varchar("terms_version", { length: 32 }).notNull(),
+  termsAcceptedAt: timestamp("terms_accepted_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastSignedIn: timestamp("last_signed_in").defaultNow().notNull(),
+}, table => ({
+  emailUq: uniqueIndex("geotwin_accounts_email_uq").on(table.email),
+  createdIdx: index("geotwin_accounts_created_idx").on(table.createdAt),
+}));
+
+/** Opaque, hashed, expiring sessions; raw session tokens exist only in secure cookies. */
+export const geoTwinSessions = mysqlTable("geotwin_sessions", {
+  tokenHash: varchar("token_hash", { length: 64 }).primaryKey(),
+  accountId: int("account_id").notNull().references(() => geoTwinAccounts.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, table => ({
+  accountIdx: index("geotwin_sessions_account_idx").on(table.accountId),
+  expiresIdx: index("geotwin_sessions_expires_idx").on(table.expiresAt),
+}));

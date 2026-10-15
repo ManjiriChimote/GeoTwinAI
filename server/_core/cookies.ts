@@ -1,6 +1,9 @@
 import type { CookieOptions, Request } from "express";
 
 export function getSessionCookieOptions(_req: Request): CookieOptions {
-  // Preview is public HTTPS in a cross-site frame even when the upstream request is HTTP.
-  return { httpOnly: true, path: "/", sameSite: "none", secure: true };
+  // The managed Preview proxy forwards the public protocol. The NODE_ENV fallback
+  // makes production HTTPS safe if an upstream omits that forwarding header.
+  const forwardedProtocol = _req.headers["x-forwarded-proto"]?.toString().split(",")[0]?.trim().toLowerCase();
+  const publicHttps = forwardedProtocol === "https" || process.env.NODE_ENV === "production";
+  return { httpOnly: true, path: "/", sameSite: publicHttps ? "none" : "lax", secure: publicHttps };
 }

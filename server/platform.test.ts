@@ -42,7 +42,8 @@ describe("current platform integration", () => {
   });
   it("uses a distinct secure app cookie behind the HTTPS Preview proxy", () => {
     expect(COOKIE_NAME).not.toBe("app_session_id");
-    expect(getSessionCookieOptions({ protocol: "http", headers: {} } as never)).toMatchObject({ secure: true, httpOnly: true, sameSite: "none" });
+    expect(getSessionCookieOptions({ protocol: "http", headers: { "x-forwarded-proto": "https" } } as never)).toMatchObject({ secure: true, httpOnly: true, sameSite: "none" });
+    expect(getSessionCookieOptions({ protocol: "http", headers: {} } as never)).toMatchObject({ secure: false, httpOnly: true, sameSite: "lax" });
   });
   it("binds signed app sessions to this project and accepts an empty display name", async () => {
     vi.stubEnv("MANUS_PROJECT_ID", "project-test");

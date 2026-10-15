@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, ArrowDownToLine, Check, CheckCircle2, Database, FileUp, Layers3, LoaderCircle, MapPin, RefreshCw, Search, Trash2, UploadCloud } from "lucide-react";
-import { apiJson, formatDate, formatNumber, type Category, type DatasetResponse, type ImportItem, type Region } from "@/lib/geotwin-api";
+import { apiJson, formatDate, formatNumber, GEO_TWIN_CSRF_HEADER, geoTwinCsrfHeaders, type Category, type DatasetResponse, type ImportItem, type Region } from "@/lib/geotwin-api";
 
 type Preview = { previewId: number; fileName: string; bytes: number; format: string; category: Category; headers: string[]; preview: Record<string, unknown>[]; sampleCount: number; spatiallyLocatedSample: number; geometryDetected: string; coordinateColumns: { latitude?: string; longitude?: string }; crs: string; needsCrsConfirmation: boolean; limitations: string };
 type Props = { region: Region; canManage: boolean; onDataChanged: () => void };
@@ -10,7 +10,9 @@ function xhrImport(file: File, preview: Preview, name: string, crsConfirmed: boo
   return new Promise<Record<string, unknown>>((resolve, reject) => {
     const form = new FormData(); form.append("file", file); form.append("previewId", String(preview.previewId)); form.append("confirm", "yes"); form.append("category", preview.category); form.append("datasetName", name); form.append("crsConfirmed", crsConfirmed ? "yes" : "no"); form.append("replace", replace ? "yes" : "no");
     const request = new XMLHttpRequest(); request.open("POST", "/api/geotwin/import"); request.withCredentials = true;
-    try { const previewToken = sessionStorage.getItem("manus-cookie"); if (previewToken) request.setRequestHeader("Authorization", `Bearer ${previewToken}`); } catch {}
+    const csrf = geoTwinCsrfHeaders("POST")[GEO_TWIN_CSRF_HEADER];
+    if (!csrf) { reject(new Error("The security token is unavailable. Refresh the signed-in workspace and try again.")); return; }
+    request.setRequestHeader(GEO_TWIN_CSRF_HEADER, csrf);
     request.upload.onprogress = event => { if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100)); };
     request.onload = () => {
       const body = (() => { try { return JSON.parse(request.responseText); } catch { return {}; } })();
