@@ -258,7 +258,7 @@ export default function Home({ accountName, accountEmail, accountId, onLogout }:
           <div className="settings-foot"><Database size={16}/><span>Configuration is managed server-side. Credentials are not exposed to the browser; no external government-data connectors are currently claimed.</span><button onClick={()=>navigate("Data Management")}>Open data management <ArrowRight size={14}/></button></div>
         </>}
 
-        <footer className="workspace-footer"><span>GEOTWINAI&nbsp; · &nbsp;NAGPUR STUDY AREA</span><span>Evidence before inference <i/> {databaseReady?`${formatNumber(summary.quality.total)} active feature rows`:"Connecting to persistent records"}</span><span>OpenStreetMap basemap attribution is shown on-map; project feature layers retain their source-file provenance.</span></footer>
+        <footer className="workspace-footer"><span>GEOTWINAI&nbsp; · &nbsp;NAGPUR STUDY AREA</span><span>Evidence before inference <i/> {databaseReady?`${formatNumber(summary.quality.total)} active feature rows`:"Connecting to persistent records"}</span><span>OpenFreeMap, OpenMapTiles and OpenStreetMap basemap attribution is shown on-map; project feature layers retain their source-file provenance.</span></footer>
       </div></div>
     </section>
     <GeoAssistant onAction={assistantAction} activeRegion={region}/>

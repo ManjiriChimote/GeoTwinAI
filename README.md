@@ -1,10 +1,10 @@
 # GeoTwinAI — The Living Digital Twin of Nagpur
 
-A source-aware GIS and urban decision-support workspace for the supplied Nagpur study-area data. It is built on the managed Webdev server and MySQL database, React, Leaflet, Express and Drizzle, and includes first-party email/password accounts with persistent server-side sessions. Its interactive maps use an OpenStreetMap basemap beneath source-backed GeoTwinAI feature layers. It does **not** represent a live or authoritative model of every part of the city.
+A source-aware GIS and urban decision-support workspace for the supplied Nagpur study-area data. It is built on the managed Webdev server and MySQL database, React, Leaflet with the MapLibre GL Leaflet adapter, Express and Drizzle, and includes first-party email/password accounts with persistent server-side sessions. The authenticated workspace map uses OpenFreeMap's OpenStreetMap-derived Positron vector basemap beneath source-backed GeoTwinAI feature layers. It does **not** represent a live or authoritative model of every part of the city.
 
 ## Run the application
 
-Requirements: Node.js 22, pnpm 10.18, and access to a MySQL database via `DATABASE_URL`. The email/password account flow is part of the application and does not require Manus OAuth or another external identity provider. Manus Preview supplies the managed database and server runtime. Interactive maps request only the visible OpenStreetMap tiles and show provider attribution.
+Requirements: Node.js 22, pnpm 10.18, and access to a MySQL database via `DATABASE_URL`. The email/password account flow is part of the application and does not require Manus OAuth or another external identity provider. Manus Preview supplies the managed database and server runtime. The workspace map requests only vector tiles needed for the current view and shows OpenFreeMap, OpenMapTiles and OpenStreetMap attribution.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -29,7 +29,7 @@ Private runtime values (`DATABASE_URL`, optional built-in service credentials an
 
 - `client/public/landing.html`, `landing.css`, `geotwin-og.png` — source-grounded public landing page and social preview card.
 - `client/src/pages/Home.tsx` — primary responsive workspace and section routing.
-- `client/src/components/GeoTwinMap.tsx` — OpenStreetMap-backed Leaflet renderer, bounded source-record queries and feature inspection.
+- `client/src/components/GeoTwinMap.tsx` — OpenFreeMap-backed Leaflet/MapLibre renderer, bounded source-record queries and feature inspection.
 - `client/src/components/GeoTwinAuthGate.tsx` — branded email/password sign-in/signup boundary and private-route gate.
 - `client/src/components/DataImportPanel.tsx` — preview, explicit import, registry and history.
 - `client/src/components/GeoAssistant.tsx` — grounded assistant interface and persisted conversations.
@@ -67,7 +67,7 @@ Project references (including the master build prompt, analysis outputs, screens
 
 The Data Management page accepts CSV, GeoJSON Feature, and GeoJSON FeatureCollection files up to 50 MB, previews fields and sample rows, asks for CRS confirmation when the source cannot verify WGS84, retains source properties, reports invalid/missing coordinates and deduplicates. GeoPackage is **not accepted directly**; export it to GeoJSON first. Uploaded datasets, features, status, provenance metadata and import events persist in MySQL. Database volume is shared by the configured development and production runtime: deliberate deletions change persisted records. Deleting an uploaded dataset requires explicit confirmation; bundled source datasets cannot be deleted through that control.
 
-The private map overlays source-supplied GIS geometries on an interactive OpenStreetMap basemap; the public landing page uses an interactive Nagpur map with no private dataset overlays. Both maps visibly attribute OpenStreetMap contributors. The app loads the visible map view only; it does not offer bulk tile downloads. Spatial feature responses are capped per selected category to keep the browser responsive; zoom/pan to refine the viewport. The app does not claim an authoritative ward boundary, verified positional accuracy, time-series changes, live sensors or complete municipal coverage.
+The private map overlays source-supplied GIS geometries on OpenFreeMap's interactive OpenStreetMap-derived Positron vector basemap; the public landing page uses an interactive Nagpur map with no private dataset overlays. The private map visibly credits OpenFreeMap, OpenMapTiles and OpenStreetMap. The app loads the visible map view only; it does not offer bulk tile downloads. Spatial feature responses are capped per selected category to keep the browser responsive; zoom/pan to refine the viewport. The app does not claim an authoritative ward boundary, verified positional accuracy, time-series changes, live sensors or complete municipal coverage.
 
 ## Analyses and AI
 
@@ -89,9 +89,9 @@ The application uses the selected Manus-managed server/container and its persist
 
 Every protected `/api/geotwin/*` data request requires an active email/password account session. Dataset upload, activation and deletion require the same account to match both `GEOTWIN_OWNER_EMAIL` and `GEOTWIN_OWNER_ACCOUNT_ID` from protected settings; a typed email or a self-registered account alone never grants administrator access. The owner ID stays out of source control. Conversations use an account-derived hash to keep one collaborator from loading another collaborator's history. Account creation is immediate; email verification and self-service password reset are not configured. Keep the site at owner/team access scope. Public exposure of analytical data is not recommended without the project's explicit permission review.
 
-## Map provider decision (2026-10-10)
+## Map provider decision (2026-11-15)
 
-The overview and private workspace use Leaflet with the standard HTTPS OpenStreetMap raster map; tiles are fetched for the current interactive view, not prefetched. Visible map attribution links directly to the OpenStreetMap copyright page. The public landing view contains only the public basemap and no private GeoTwinAI data. Provider terms: [OpenStreetMap Standard tile policy](https://operations.osmfoundation.org/policies/tiles/). The project’s Managed Maps proxy rejected the current Preview origin, so the Google maps proxy is not used here.
+The private workspace uses Leaflet with the MapLibre GL Leaflet adapter and OpenFreeMap's hosted Positron style (`https://tiles.openfreemap.org/styles/positron`). The standard `tile.openstreetmap.org` raster endpoint returned its policy “Access blocked” notice in Preview, so GeoTwinAI no longer requests those tiles. The visible map credits OpenFreeMap, OpenMapTiles and OpenStreetMap; only the tiles needed for the current interactive view are requested. OpenFreeMap's public instance is free and requires no API key, but its Terms state the service is provided as-is with no availability guarantee. See the [OpenFreeMap Quick Start](https://openfreemap.org/quick_start/), [OpenFreeMap Terms of Service](https://openfreemap.org/tos/) and [OpenStreetMap Standard tile policy](https://operations.osmfoundation.org/policies/tiles/). This is a basemap only; private GeoTwinAI GIS features continue to load from the authenticated project database. The Google maps proxy remains unused because it rejected the current Preview origin.
 
 ## Source review note
 

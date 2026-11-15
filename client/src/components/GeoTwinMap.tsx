@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AttributionControl, GeoJSON, MapContainer, ScaleControl, TileLayer, useMap, useMapEvents, ZoomControl } from "react-leaflet";
+import { AttributionControl, GeoJSON, MapContainer, ScaleControl, useMap, useMapEvents, ZoomControl } from "react-leaflet";
 import L from "leaflet";
+import { maplibreGL } from "@maplibre/maplibre-gl-leaflet";
+import { setWorkerUrl } from "maplibre-gl";
+import mapLibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "leaflet/dist/leaflet.css";
+import "maplibre-gl/dist/maplibre-gl.css";
 import wellknown from "wellknown";
 import type { Feature as GeoJsonFeature, FeatureCollection, Geometry } from "geojson";
 import { Layers3, LocateFixed, LoaderCircle, MapPin } from "lucide-react";
 import { apiJson, GEO_TWIN_AUTH_EXPIRED_EVENT, type Category, type GeoFeature } from "@/lib/geotwin-api";
 import { categoryColor, defaultMapCategories, mapLayerOptions } from "@/lib/map-layers";
+
+setWorkerUrl(mapLibreWorkerUrl);
+const OPENFREEMAP_STYLE = "https://tiles.openfreemap.org/styles/positron";
+const OPENFREEMAP_ATTRIBUTION = '<a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> · © <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a> · Data from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>';
 
 export type BoundsBox = { west: number; east: number; south: number; north: number };
 
@@ -37,6 +45,14 @@ function geometryFromRecord(record: GeoFeature): Geometry | null {
   return Number.isFinite(record.latitude) && Number.isFinite(record.longitude)
     ? { type: "Point", coordinates: [record.longitude, record.latitude] }
     : null;
+}
+function OpenFreeMapBaseLayer() {
+  const map = useMap();
+  useEffect(() => {
+    const layer = maplibreGL({ style: OPENFREEMAP_STYLE, attributionControl: { customAttribution: OPENFREEMAP_ATTRIBUTION } }).addTo(map);
+    return () => { map.removeLayer(layer); };
+  }, [map]);
+  return null;
 }
 function MapStateListener({ onBounds }: { onBounds: (bounds: BoundsBox) => void }) {
   const map = useMap();
@@ -183,13 +199,8 @@ export default function GeoTwinMap({ region, search = "", fitToken, focusCategor
         </div>
       </div>
       <div className="map-canvas-wrap">
-        <MapContainer center={[21.1458, 79.0882]} zoom={12} zoomControl={false} scrollWheelZoom className="map-canvas" preferCanvas>
-          <TileLayer
-            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'
-            maxZoom={19}
-            detectRetina
-          />
+        <MapContainer center={[21.1458, 79.0882]} zoom={12} minZoom={1} maxZoom={19} zoomControl={false} scrollWheelZoom className="map-canvas" preferCanvas>
+          <OpenFreeMapBaseLayer />
           <AttributionControl position="bottomright" prefix={false} />
           <ZoomControl position="bottomright" />
           <ScaleControl position="bottomleft" metric imperial={false} />
@@ -224,7 +235,7 @@ export default function GeoTwinMap({ region, search = "", fitToken, focusCategor
         {loading && <div className="map-loading"><LoaderCircle size={15} className="spin" /><span>Querying the visible extent…</span></div>}
         {!loading && !error && dataStatus && <div className="map-record-count"><MapPin size={12} />{dataStatus}</div>}
       </div>
-      <div className="map-footer"><span><i className="source-dot" /> OpenStreetMap basemap · project-supplied GIS layers</span><span>{showingCitywideEnvironmentalRows ? "City-wide environmental samples remain separate from analytical region records." : "Pan or zoom to query another area"}</span></div>
+      <div className="map-footer"><span><i className="source-dot" /> OpenFreeMap vector basemap · project-supplied GIS layers</span><span>{showingCitywideEnvironmentalRows ? "City-wide environmental samples remain separate from analytical region records." : "Pan or zoom to query another area"}</span></div>
     </div>
   );
 }
