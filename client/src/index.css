@@ -700,6 +700,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 @media(min-width:821px){.side-rail{width:320px;min-width:320px}.work-area{width:calc(100% - 320px);margin-left:320px}}
 .nav-indicator{width:6px;height:6px;border-radius:50%;background:var(--terra);margin-left:auto;flex:none}
 .map-panel,.report-document,.design-note,.story-note,.source-snapshots{border-radius:14px}
+.map-region-extent-tag{display:flex;align-items:center;gap:5px;white-space:nowrap;color:#76584e}
+.map-region-extent-tag>i{display:inline-block;width:12px;height:0;border-top:2px dashed #b36b56}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid #7097a0;outline-offset:2px}
 
 
