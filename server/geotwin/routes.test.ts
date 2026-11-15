@@ -123,4 +123,36 @@ describe("GeoTwinAI internal map feature endpoint", () => {
       await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     }
   });
+
+  it.each(["North", "South", "East", "West", "Central"]) ("returns a full feature extent for the selected %s region", async region => {
+    const extent = { west: 79.01, east: 79.12, south: 21.08, north: 21.22 };
+    const execute = vi.fn(async (sql: string, params: unknown[] = []) => {
+      if (sql.includes("SELECT MIN(f.longitude) AS west")) return [[extent], []];
+      if (sql.includes("SELECT DISTINCT f.category")) return [[{ category: "Buildings" }, { category: "Roads" }], []];
+      if (sql.startsWith("SELECT COUNT(*) AS count")) return [[{ count: 1 }], []];
+      const category = String(params[0]);
+      return [[{ id: 1, category, region, name: `Sample ${category}`, latitude: 21.15, longitude: 79.08, geometry_type: "Point", geometry: "POINT (79.08 21.15)", properties: "{}", dataset: `Nagpur ${category}`, sourceFile: `${category}.csv` }], []];
+    });
+    mocks.getPool.mockReturnValue({ execute });
+    mocks.authenticate.mockResolvedValue({ openId: "test-viewer", name: "Map test", role: "user", isCron: false });
+
+    const app = express();
+    registerGeoTwinRoutes(app);
+    const server = app.listen(0, "127.0.0.1");
+    await new Promise<void>(resolve => server.once("listening", resolve));
+    const { port } = server.address() as { port: number };
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/api/geotwin/features?categories=Buildings,Roads&region=${region}&fitRegion=1`);
+      expect(response.status).toBe(200);
+      const body = await response.json() as { features: { region: string }[]; extent: typeof extent };
+      expect(body.extent).toEqual(extent);
+      expect(body.features.length).toBeGreaterThan(0);
+      expect(body.features.every(feature => feature.region === region)).toBe(true);
+      const extentQuery = execute.mock.calls.find(([sql]) => sql.includes("SELECT MIN(f.longitude) AS west"));
+      expect(extentQuery?.[1]).toContain(region);
+      expect(extentQuery?.[0]).not.toContain("f.longitude BETWEEN ? AND ?");
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    }
+  });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AttributionControl, GeoJSON, MapContainer, ScaleControl, TileLayer, useMap, useMapEvents, ZoomControl } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -79,6 +79,18 @@ function FitButton({ token, features }: { token?: number; features: GeoFeature[]
   }, [token, features, map]);
   return null;
 }
+function FitRegionExtent({ token, extent }: { token: number; extent: BoundsBox | null }) {
+  const map = useMap();
+  const appliedToken = useRef(0);
+  useEffect(() => {
+    if (!token || token === appliedToken.current || !extent) return;
+    const bounds = L.latLngBounds([[extent.south, extent.west], [extent.north, extent.east]]);
+    if (!bounds.isValid()) return;
+    appliedToken.current = token;
+    map.fitBounds(bounds, { padding: [44, 44], maxZoom: 15, animate: true });
+  }, [token, extent, map]);
+  return null;
+}
 
 export default function GeoTwinMap({ region, search = "", fitToken, focusCategory, focusToken, onFeatures, onMissingLayerClick, className = "" }: Props) {
   const [layers, setLayers] = useState<Category[]>(defaultMapCategories);
@@ -90,17 +102,27 @@ export default function GeoTwinMap({ region, search = "", fitToken, focusCategor
   const [selected, setSelected] = useState<GeoFeature | null>(null);
   const [dataStatus, setDataStatus] = useState("");
   const [availableCategories, setAvailableCategories] = useState<Category[] | null>(null);
+  const [regionExtent, setRegionExtent] = useState<BoundsBox | null>(null);
+  const [regionFitToken, setRegionFitToken] = useState(0);
+  const priorRegion = useRef(region);
+  const fitRegionPending = useRef(Boolean(region));
 
-  const load = useCallback(async (box: BoundsBox | null, signal?: AbortSignal) => {
+  const load = useCallback(async (box: BoundsBox | null, signal?: AbortSignal, fitRegion = false) => {
     if (!layers.length) { setFeatures([]); setDataStatus("All map layers are hidden."); onFeatures?.([]); return; }
     setLoading(true); setError(""); setSessionExpired(false);
     const params = new URLSearchParams({ categories: layers.join(","), region, search: search.trim() });
-    if (box) Object.entries(box).forEach(([key, value]) => params.set(key, String(value)));
+    if (fitRegion) params.set("fitRegion", "1");
+    else if (box) Object.entries(box).forEach(([key, value]) => params.set(key, String(value)));
     try {
-      const body = await apiJson<{ features: GeoFeature[]; count: number; loaded: number; truncated?: boolean; availableCategories?: Category[]; note?: string }>(`/api/geotwin/features?${params}`, { signal });
+      const body = await apiJson<{ features: GeoFeature[]; count: number; loaded: number; truncated?: boolean; availableCategories?: Category[]; note?: string; extent?: BoundsBox | null }>(`/api/geotwin/features?${params}`, { signal });
       setFeatures(body.features);
       setAvailableCategories(body.availableCategories ?? []);
       onFeatures?.(body.features);
+      if (fitRegion) {
+        fitRegionPending.current = false;
+        setRegionExtent(body.extent ?? null);
+        setRegionFitToken(value => value + 1);
+      }
       setDataStatus(body.truncated ? `Showing ${body.loaded.toLocaleString()} of ${body.count.toLocaleString()} records in this extent · zoom in for detail` : body.count ? `${body.count.toLocaleString()} records in this view` : "No records in this view");
     } catch (e) {
       if (!(e instanceof DOMException && e.name === "AbortError")) {
@@ -113,8 +135,16 @@ export default function GeoTwinMap({ region, search = "", fitToken, focusCategor
   }, [layers, onFeatures, region, search]);
 
   useEffect(() => {
+    if (priorRegion.current === region) return;
+    priorRegion.current = region;
+    fitRegionPending.current = true;
+    setBounds(null);
+  }, [region]);
+
+  useEffect(() => {
     const controller = new AbortController();
-    const timer = window.setTimeout(() => void load(bounds, controller.signal), 280);
+    const fitRegion = fitRegionPending.current;
+    const timer = window.setTimeout(() => void load(bounds, controller.signal, fitRegion), 280);
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [load, bounds]);
 
@@ -165,6 +195,7 @@ export default function GeoTwinMap({ region, search = "", fitToken, focusCategor
           <ScaleControl position="bottomleft" metric imperial={false} />
           <MapStateListener onBounds={boundsCallback} />
           <FitButton token={fitToken} features={features} />
+          <FitRegionExtent token={regionFitToken} extent={regionExtent} />
           <MapHomeControls />
           {collection.map(({ category, collection: data }) => (
             <GeoJSON key={category} data={data} style={() => ({ color: categoryColor[category] ?? "#527c8c", weight: category === "Roads" ? 2.1 : 1.2, opacity: category === "Roads" ? 0.64 : 0.75, fillColor: categoryColor[category] ?? "#527c8c", fillOpacity: category === "Flood risk" ? 0.18 : 0.28 })}
@@ -189,7 +220,7 @@ export default function GeoTwinMap({ region, search = "", fitToken, focusCategor
           })}
         </div>
         {selected && <div className="feature-inspector"><button onClick={() => setSelected(null)} aria-label="Close feature details" className="inspector-close">×</button><span className="eyebrow">FEATURE RECORD · {selected.category}</span><strong>{selected.name || selected.category}</strong><span>{selected.region || "Region not provided"} · {selected.dataset}</span><small className="feature-source-file">{selected.sourceFile}</small><code>{selected.latitude.toFixed(5)}, {selected.longitude.toFixed(5)}</code><dl>{Object.entries(selected.properties ?? {}).slice(0, 4).map(([key, value]) => <div key={key}><dt>{key.replace(/_/g, " ")}</dt><dd>{String(value).slice(0, 76)}</dd></div>)}</dl></div>}
-        {error && <div className="map-error" role="alert"><span>{error}</span><button onClick={() => sessionExpired ? window.dispatchEvent(new Event(GEO_TWIN_AUTH_EXPIRED_EVENT)) : void load(bounds)}>{sessionExpired ? "Return to sign in" : "Retry"}</button></div>}
+        {error && <div className="map-error" role="alert"><span>{error}</span><button onClick={() => sessionExpired ? window.dispatchEvent(new Event(GEO_TWIN_AUTH_EXPIRED_EVENT)) : void load(bounds, undefined, fitRegionPending.current)}>{sessionExpired ? "Return to sign in" : "Retry"}</button></div>}
         {loading && <div className="map-loading"><LoaderCircle size={15} className="spin" /><span>Querying the visible extent…</span></div>}
         {!loading && !error && dataStatus && <div className="map-record-count"><MapPin size={12} />{dataStatus}</div>}
       </div>

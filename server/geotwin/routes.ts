@@ -218,11 +218,40 @@ export function registerGeoTwinRoutes(app: Express) {
       const [rows] = await pool.execute<RowDataPacket[]>(`SELECT f.id, f.category, f.region, f.name, f.latitude, f.longitude, f.geometry_type, f.geometry, f.properties, d.display_name AS dataset, d.source_file AS sourceFile FROM geotwin_features f INNER JOIN geotwin_datasets d ON d.id=f.dataset_id WHERE ${where.join(" AND ")} ORDER BY f.id LIMIT ${limit}`, params);
       return { rows, total: Number(countRow?.count ?? 0) };
     }));
+    const fitRegion = req.query.fitRegion === "1";
+    let extent: { west: number; east: number; south: number; north: number } | null | undefined;
+    if (fitRegion) {
+      const environmental = new Set(["Built-up", "Green cover", "Flood risk", "NDVI"]);
+      const regionCategories = categoryValues.filter(category => !environmental.has(category));
+      const extentCategories = regionCategories.length ? regionCategories : categoryValues;
+      const extentWhere = ["d.active=1", "d.status='ready'", "f.latitude IS NOT NULL", "f.longitude IS NOT NULL", `f.category IN (${extentCategories.map(() => "?").join(",")})`];
+      const extentParams: (string | number)[] = [...extentCategories];
+      if (region && isAdministrativeRegion(region)) {
+        const regional = extentCategories.filter(category => !environmental.has(category));
+        const citywide = extentCategories.filter(category => environmental.has(category));
+        const clauses: string[] = [];
+        if (regional.length) {
+          clauses.push(`(f.category IN (${regional.map(() => "?").join(",")}) AND f.region=?)`);
+          extentParams.push(...regional, region);
+        }
+        if (citywide.length) {
+          clauses.push(`(f.category IN (${citywide.map(() => "?").join(",")}) AND (f.region=? OR f.region='Nagpur' OR f.region IS NULL))`);
+          extentParams.push(...citywide, region);
+        }
+        extentWhere.push(`(${clauses.join(" OR ")})`);
+      }
+      if (search) { extentWhere.push("(f.name LIKE ? OR f.properties LIKE ?)"); extentParams.push(`%${search}%`, `%${search}%`); }
+      const [extentRows] = await pool.execute<RowDataPacket[]>(`SELECT MIN(f.longitude) AS west, MAX(f.longitude) AS east, MIN(f.latitude) AS south, MAX(f.latitude) AS north FROM geotwin_features f INNER JOIN geotwin_datasets d ON d.id=f.dataset_id WHERE ${extentWhere.join(" AND ")}`, extentParams);
+      const row = extentRows[0];
+      extent = row && [row.west, row.east, row.south, row.north].every(value => value !== null && value !== undefined && Number.isFinite(Number(value)))
+        ? { west: Number(row.west), east: Number(row.east), south: Number(row.south), north: Number(row.north) }
+        : null;
+    }
     const [catalog] = await pool.execute<RowDataPacket[]>(`SELECT DISTINCT f.category FROM geotwin_features f INNER JOIN geotwin_datasets d ON d.id=f.dataset_id WHERE d.active=1 AND d.status='ready' AND f.latitude IS NOT NULL AND f.longitude IS NOT NULL AND f.category IN (${ALL_CATEGORIES.map(()=>"?").join(",")})`, ALL_CATEGORIES);
     const availableCategories = catalog.map(row => String(row.category));
     const all = categoryResults.flatMap(group => group.rows.map(row => ({ id: Number(row.id), category: row.category, region: row.region, name: row.name, latitude: Number(row.latitude), longitude: Number(row.longitude), geometryType: row.geometry_type, geometry: row.geometry, properties: parseJson(row.properties, {}), dataset: row.dataset, sourceFile: row.sourceFile })));
     const total = categoryResults.reduce((sum, group) => sum + group.total, 0);
-    return res.json({ features: all, count: total, loaded: all.length, truncated: total > all.length, availableCategories });
+    return res.json({ features: all, count: total, loaded: all.length, truncated: total > all.length, availableCategories, ...(fitRegion ? { extent } : {}) });
   }));
 
   app.get("/api/geotwin/datasets", asyncRoute(async (_req, res) => {
