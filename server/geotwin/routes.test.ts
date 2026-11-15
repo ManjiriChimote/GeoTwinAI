@@ -156,6 +156,46 @@ describe("GeoTwinAI internal map feature endpoint", () => {
     }
   });
 
+  it.each(["North", "South", "East", "West", "Central"]) ("excludes citywide environmental samples from the %s regional map", async region => {
+    const extent = { west: 79.01, east: 79.12, south: 21.08, north: 21.22 };
+    const unassignedFeature = { id: 9, category: "Green cover", region: "Nagpur", name: "Citywide sample", latitude: 21.15, longitude: 79.08, geometry_type: "Point", geometry: "POINT (79.08 21.15)", properties: "{}", dataset: "Green cover", sourceFile: "green.csv" };
+    const execute = vi.fn(async (sql: string, params: unknown[] = []) => {
+      const exactRegion = sql.includes("f.region=?") && params.includes(region);
+      if (sql.includes("SELECT MIN(f.longitude) AS west")) return [[extent], []];
+      if (sql.includes("SELECT DISTINCT f.category")) return [[{ category: "Green cover" }], []];
+      if (sql.startsWith("SELECT COUNT(*) AS count")) return [[{ count: exactRegion ? 0 : 1 }], []];
+      if (sql.startsWith("SELECT f.id, f.category")) return exactRegion ? [[], []] : [[unassignedFeature], []];
+      return [[], []];
+    });
+    mocks.getPool.mockReturnValue({ execute });
+    mocks.authenticate.mockResolvedValue({ openId: "test-viewer", name: "Map test", role: "user", isCron: false });
+
+    const app = express();
+    registerGeoTwinRoutes(app);
+    const server = app.listen(0, "127.0.0.1");
+    await new Promise<void>(resolve => server.once("listening", resolve));
+    const { port } = server.address() as { port: number };
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/api/geotwin/features?categories=Green%20cover&region=${region}&fitRegion=1`);
+      expect(response.status).toBe(200);
+      const body = await response.json() as { features: { region: string }[]; count: number; extent: typeof extent };
+      expect(body.count).toBe(0);
+      expect(body.features).toEqual([]);
+      expect(body.extent).toEqual(extent);
+
+      const featureQuery = execute.mock.calls.find(([sql]) => sql.startsWith("SELECT f.id, f.category"));
+      expect(featureQuery?.[0]).toContain("f.region=?");
+      expect(featureQuery?.[0]).not.toMatch(/f\.region='Nagpur'|f\.region IS NULL/);
+      expect(featureQuery?.[1]).toEqual(["Green cover", region]);
+      const extentQuery = execute.mock.calls.find(([sql]) => sql.includes("SELECT MIN(f.longitude) AS west"));
+      expect(extentQuery?.[0]).toContain("f.region=?");
+      expect(extentQuery?.[0]).not.toMatch(/f\.region='Nagpur'|f\.region IS NULL/);
+      expect(extentQuery?.[1]).toContain(region);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    }
+  });
+
   it("matches category names when the Explore search field is used", async () => {
     const execute = vi.fn(async (sql: string, params: unknown[] = []) => {
       if (sql.includes("SELECT DISTINCT f.category")) return [[{ category: "Hospitals" }], []];

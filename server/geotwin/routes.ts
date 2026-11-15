@@ -208,8 +208,8 @@ export function registerGeoTwinRoutes(app: Express) {
       const where = ["f.category=?", "d.active=1", "d.status='ready'", "f.latitude IS NOT NULL", "f.longitude IS NOT NULL"];
       const params: (string | number)[] = [category];
       if (region && isAdministrativeRegion(region)) {
-        if (["Built-up", "Green cover", "Flood risk", "NDVI"].includes(category)) { where.push("(f.region=? OR f.region='Nagpur' OR f.region IS NULL)"); params.push(region); }
-        else { where.push("f.region=?"); params.push(region); }
+        where.push("f.region=?");
+        params.push(region);
       }
       if (search) { where.push("(f.name LIKE ? OR f.category LIKE ? OR f.properties LIKE ?)"); params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
       if (bounded) { where.push("f.longitude BETWEEN ? AND ?", "f.latitude BETWEEN ? AND ?"); params.push(west!, east!, south!, north!); }
@@ -223,22 +223,12 @@ export function registerGeoTwinRoutes(app: Express) {
     if (fitRegion) {
       const environmental = new Set(["Built-up", "Green cover", "Flood risk", "NDVI"]);
       const regionCategories = categoryValues.filter(category => !environmental.has(category));
-      const extentCategories = regionCategories.length ? regionCategories : categoryValues;
+      const extentCategories = regionCategories.length ? regionCategories : CORE_CATEGORIES;
       const extentWhere = ["d.active=1", "d.status='ready'", "f.latitude IS NOT NULL", "f.longitude IS NOT NULL", `f.category IN (${extentCategories.map(() => "?").join(",")})`];
       const extentParams: (string | number)[] = [...extentCategories];
       if (region && isAdministrativeRegion(region)) {
-        const regional = extentCategories.filter(category => !environmental.has(category));
-        const citywide = extentCategories.filter(category => environmental.has(category));
-        const clauses: string[] = [];
-        if (regional.length) {
-          clauses.push(`(f.category IN (${regional.map(() => "?").join(",")}) AND f.region=?)`);
-          extentParams.push(...regional, region);
-        }
-        if (citywide.length) {
-          clauses.push(`(f.category IN (${citywide.map(() => "?").join(",")}) AND (f.region=? OR f.region='Nagpur' OR f.region IS NULL))`);
-          extentParams.push(...citywide, region);
-        }
-        extentWhere.push(`(${clauses.join(" OR ")})`);
+        extentWhere.push("f.region=?");
+        extentParams.push(region);
       }
       if (search) { extentWhere.push("(f.name LIKE ? OR f.category LIKE ? OR f.properties LIKE ?)"); extentParams.push(`%${search}%`, `%${search}%`, `%${search}%`); }
       const [extentRows] = await pool.execute<RowDataPacket[]>(`SELECT MIN(f.longitude) AS west, MAX(f.longitude) AS east, MIN(f.latitude) AS south, MAX(f.latitude) AS north FROM geotwin_features f INNER JOIN geotwin_datasets d ON d.id=f.dataset_id WHERE ${extentWhere.join(" AND ")}`, extentParams);

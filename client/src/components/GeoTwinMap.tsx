@@ -187,12 +187,12 @@ export default function GeoTwinMap({ region, search = "", fitToken, focusCategor
     const delta = [Math.abs(current.west - value.west), Math.abs(current.east - value.east), Math.abs(current.south - value.south), Math.abs(current.north - value.north)];
     return Math.max(...delta) < 0.0002 ? current : value;
   }), []);
-  const showingCitywideEnvironmentalRows = Boolean(region) && layers.some(category => ["Built-up", "Green cover", "Flood risk", "NDVI"].includes(category));
+  const hidingUnassignedEnvironmentalRows = Boolean(region) && layers.some(category => ["Built-up", "Green cover", "Flood risk", "NDVI"].includes(category));
 
   return (
     <div className={`map-panel ${className}`}>
       <div className="map-titlebar">
-        <div className="map-title"><span className="tiny-eye" /> <span>NAGPUR / DIGITAL CITY MODEL</span><span className="map-title-city">Nagpur, Maharashtra</span></div>
+        <div className="map-title"><span className="tiny-eye" /> <span>NAGPUR / DIGITAL CITY MODEL</span><span className="map-title-city">{region ? `${region} analytical region` : "Nagpur, Maharashtra"}</span></div>
         <div className="map-title-tools">
           <span className="map-status"><i className={error ? "status-dot dot-error" : "status-dot dot-live"} />{error ? "Data unavailable" : "Source records"}</span>
           <button className="icon-btn map-locate" title="Return to the Nagpur study center" aria-label="Return to Nagpur center" onClick={() => window.dispatchEvent(new CustomEvent("geotwin-map-center"))}><LocateFixed size={16} /></button>
@@ -235,7 +235,7 @@ export default function GeoTwinMap({ region, search = "", fitToken, focusCategor
         {loading && <div className="map-loading"><LoaderCircle size={15} className="spin" /><span>Querying the visible extent…</span></div>}
         {!loading && !error && dataStatus && <div className="map-record-count"><MapPin size={12} />{dataStatus}</div>}
       </div>
-      <div className="map-footer"><span><i className="source-dot" /> OpenFreeMap vector basemap · project-supplied GIS layers</span><span>{showingCitywideEnvironmentalRows ? "City-wide environmental samples remain separate from analytical region records." : "Pan or zoom to query another area"}</span></div>
+      <div className="map-footer"><span><i className="source-dot" /> OpenFreeMap vector basemap · project-supplied GIS layers</span><span>{hidingUnassignedEnvironmentalRows ? `The ${region} filter excludes city-wide environmental samples without a matching region label; choose All regions to view them.` : "Pan or zoom to query another area"}</span></div>
     </div>
   );
 }
