@@ -211,7 +211,7 @@ export function registerGeoTwinRoutes(app: Express) {
         if (["Built-up", "Green cover", "Flood risk", "NDVI"].includes(category)) { where.push("(f.region=? OR f.region='Nagpur' OR f.region IS NULL)"); params.push(region); }
         else { where.push("f.region=?"); params.push(region); }
       }
-      if (search) { where.push("(f.name LIKE ? OR f.properties LIKE ?)"); params.push(`%${search}%`, `%${search}%`); }
+      if (search) { where.push("(f.name LIKE ? OR f.category LIKE ? OR f.properties LIKE ?)"); params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
       if (bounded) { where.push("f.longitude BETWEEN ? AND ?", "f.latitude BETWEEN ? AND ?"); params.push(west!, east!, south!, north!); }
       const limit = category === "Roads" ? 850 : ["Green cover", "Built-up", "Flood risk", "NDVI"].includes(category) ? 900 : 650;
       const [[countRow]] = await pool.execute<RowDataPacket[]>(`SELECT COUNT(*) AS count FROM geotwin_features f INNER JOIN geotwin_datasets d ON d.id=f.dataset_id WHERE ${where.join(" AND ")}`, params);
@@ -240,7 +240,7 @@ export function registerGeoTwinRoutes(app: Express) {
         }
         extentWhere.push(`(${clauses.join(" OR ")})`);
       }
-      if (search) { extentWhere.push("(f.name LIKE ? OR f.properties LIKE ?)"); extentParams.push(`%${search}%`, `%${search}%`); }
+      if (search) { extentWhere.push("(f.name LIKE ? OR f.category LIKE ? OR f.properties LIKE ?)"); extentParams.push(`%${search}%`, `%${search}%`, `%${search}%`); }
       const [extentRows] = await pool.execute<RowDataPacket[]>(`SELECT MIN(f.longitude) AS west, MAX(f.longitude) AS east, MIN(f.latitude) AS south, MAX(f.latitude) AS north FROM geotwin_features f INNER JOIN geotwin_datasets d ON d.id=f.dataset_id WHERE ${extentWhere.join(" AND ")}`, extentParams);
       const row = extentRows[0];
       extent = row && [row.west, row.east, row.south, row.north].every(value => value !== null && value !== undefined && Number.isFinite(Number(value)))
@@ -390,7 +390,8 @@ export function registerGeoTwinRoutes(app: Express) {
       const [data] = await pool.query<RowDataPacket[]>("SELECT d.display_name,d.category,d.total_records,d.mapped_records,d.invalid_coordinates,COUNT(f.id) AS stored_records FROM geotwin_datasets d LEFT JOIN geotwin_features f ON f.dataset_id=d.id WHERE d.active=1 AND d.status='ready' GROUP BY d.id ORDER BY d.display_name");
       result = { question: "How complete are the active datasets?", method: "Compare each registry source-row count with mapped/invalid-coordinate counts and persisted feature count. Completeness describes file/coordinate coverage, not positional accuracy or field truth.", datasets: data.map(row => ({ name: row.display_name, category: row.category, sourceRecords: Number(row.total_records), mappedRecords: Number(row.mapped_records), invalidCoordinates: Number(row.invalid_coordinates), storedRecords: Number(row.stored_records), coordinateShare: Number(row.total_records) ? Number(row.mapped_records) / Number(row.total_records) : null })), limitation: "A valid coordinate range cannot certify CRS, geometry correctness or authoritative coverage." };
     } else if (analysisType === "proximity") {
-      const [facilityRows] = await pool.query<RowDataPacket[]>("SELECT f.category,f.region,f.latitude,f.longitude FROM geotwin_features f JOIN geotwin_datasets d ON d.id=f.dataset_id WHERE d.active=1 AND d.status='ready' AND f.category IN ('Hospitals','Schools') AND f.latitude IS NOT NULL AND f.longitude IS NOT NULL ORDER BY f.id");
+      const regionClause = region ? " AND f.region=?" : "";
+      const [facilityRows] = await pool.query<RowDataPacket[]>(`SELECT f.category,f.region,f.latitude,f.longitude FROM geotwin_features f JOIN geotwin_datasets d ON d.id=f.dataset_id WHERE d.active=1 AND d.status='ready' AND f.category IN ('Hospitals','Schools') AND f.latitude IS NOT NULL AND f.longitude IS NOT NULL${regionClause} ORDER BY f.id`, region ? [region] : []);
       const points = facilityRows as { category: string; region: string; latitude: number; longitude: number }[];
       const outputs: Record<string, { category: string; count: number; nearestKmMean: number | null; sample: number; method: string }> = {};
       for (const category of ["Hospitals", "Schools"]) {
