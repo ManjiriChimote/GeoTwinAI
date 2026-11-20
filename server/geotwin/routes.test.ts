@@ -221,6 +221,99 @@ describe("GeoTwinAI internal map feature endpoint", () => {
     }
   });
 
+  it("searches active mapped features outside the current bounds and visible map layers", async () => {
+    const school = {
+      id: 91,
+      category: "Schools",
+      region: "Central",
+      name: "Central Park Primary School",
+      latitude: 21.1458,
+      longitude: 79.0882,
+      geometry_type: "Point",
+      geometry: "POINT (79.0882 21.1458)",
+      properties: JSON.stringify({ source_id: "SCH-91", level: "primary" }),
+      dataset: "Nagpur schools",
+      sourceFile: "schools.csv",
+    };
+    const execute = vi.fn(async (sql: string, params: unknown[] = []) => {
+      expect(sql).toContain("ORDER BY CASE");
+      expect(params).toHaveLength(9);
+      return [[school], []];
+    });
+    mocks.getPool.mockReturnValue({ execute });
+    mocks.authenticate.mockResolvedValue({ openId: "test-viewer", name: "Map test", role: "user", isCron: false });
+    const app = express();
+    registerGeoTwinRoutes(app);
+    const server = app.listen(0, "127.0.0.1");
+    await new Promise<void>(resolve => server.once("listening", resolve));
+    const { port } = server.address() as { port: number };
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/api/geotwin/search?search=Central%20Park&region=Central`);
+      expect(response.status).toBe(200);
+      const body = await response.json() as { features: { id: number; category: string; name: string; region: string; sourceFile: string; properties: Record<string, unknown> }[] };
+      expect(body.features).toHaveLength(1);
+      expect(body.features[0]).toMatchObject({ id: 91, category: "Schools", name: school.name, region: "Central", sourceFile: "schools.csv", properties: { source_id: "SCH-91", level: "primary" } });
+      expect(execute).toHaveBeenCalledTimes(1);
+      const [sql, params] = execute.mock.calls[0];
+      expect(sql).toContain("d.active=1");
+      expect(sql).toContain("d.status='ready'");
+      expect(sql).toContain("f.properties LIKE ? ESCAPE '!'");
+      expect(sql).toContain("d.display_name LIKE ? ESCAPE '!'");
+      expect(sql).not.toContain("f.longitude BETWEEN ? AND ?");
+      expect(sql).not.toContain("f.category IN (");
+      expect(sql).toContain("LIMIT 10");
+      expect(params).toEqual(["%Central Park%", "%Central Park%", "%Central Park%", "%Central Park%", "%Central Park%", "Central", "Central Park%", "Central Park", "Central Park%"]);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    }
+  });
+
+  it("returns Schools features for a broad category search without scanning unrelated text", async () => {
+    const school = { id: 92, category: "Schools", region: "North", name: "North Learning Centre", latitude: 21.16, longitude: 79.09, geometry_type: "Point", geometry: "POINT (79.09 21.16)", properties: "{}", dataset: "Nagpur schools", sourceFile: "schools.csv" };
+    const execute = vi.fn(async (sql: string, params: unknown[] = []) => {
+      expect(sql).toContain("f.category IN (?)");
+      expect(sql).toContain("d.active=1");
+      expect(sql).not.toContain("f.properties LIKE");
+      expect(sql).not.toContain("f.longitude BETWEEN");
+      expect(params).toEqual(["Schools", "North"]);
+      return [[school], []];
+    });
+    mocks.getPool.mockReturnValue({ execute });
+    mocks.authenticate.mockResolvedValue({ openId: "test-viewer", name: "Map test", role: "user", isCron: false });
+    const app = express();
+    registerGeoTwinRoutes(app);
+    const server = app.listen(0, "127.0.0.1");
+    await new Promise<void>(resolve => server.once("listening", resolve));
+    const { port } = server.address() as { port: number };
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/api/geotwin/search?search=school&region=North`);
+      expect(response.status).toBe(200);
+      const body = await response.json() as { features: { category: string; name: string }[] };
+      expect(body.features).toEqual([expect.objectContaining({ category: "Schools", name: school.name })]);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    }
+  });
+
+  it("does not query the database for map search terms shorter than two characters", async () => {
+    const execute = vi.fn();
+    mocks.getPool.mockReturnValue({ execute });
+    mocks.authenticate.mockResolvedValue({ openId: "test-viewer", name: "Map test", role: "user", isCron: false });
+    const app = express();
+    registerGeoTwinRoutes(app);
+    const server = app.listen(0, "127.0.0.1");
+    await new Promise<void>(resolve => server.once("listening", resolve));
+    const { port } = server.address() as { port: number };
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/api/geotwin/search?search=S`);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ features: [] });
+      expect(execute).not.toHaveBeenCalled();
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    }
+  });
+
   it("scopes facility clustering to the selected analytical region", async () => {
     const points = [
       { category: "Hospitals", region: "North", latitude: 21.15, longitude: 79.08 },

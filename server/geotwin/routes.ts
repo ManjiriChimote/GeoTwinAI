@@ -37,6 +37,7 @@ const featureDigest = (category: string, props: Record<string, unknown>, geometr
 const jsonString = (value: unknown) => JSON.stringify(value ?? {});
 const parseWktType = (text: string) => (text.match(/^\s*(MULTIPOLYGON|POLYGON|MULTILINESTRING|LINESTRING|MULTIPOINT|POINT)\b/i)?.[1] ?? "").toLowerCase();
 const isAdministrativeRegion = (value: string | null) => !!value && ANALYTICAL_REGIONS.includes(value as (typeof ANALYTICAL_REGIONS)[number]);
+const escapeLikeTerm = (value: string) => value.replace(/[!%_]/g, character => `!${character}`);
 
 function getDatabase() {
   const pool = getPool();
@@ -242,6 +243,44 @@ export function registerGeoTwinRoutes(app: Express) {
     const all = categoryResults.flatMap(group => group.rows.map(row => ({ id: Number(row.id), category: row.category, region: row.region, name: row.name, latitude: Number(row.latitude), longitude: Number(row.longitude), geometryType: row.geometry_type, geometry: row.geometry, properties: parseJson(row.properties, {}), dataset: row.dataset, sourceFile: row.sourceFile })));
     const total = categoryResults.reduce((sum, group) => sum + group.total, 0);
     return res.json({ features: all, count: total, loaded: all.length, truncated: total > all.length, availableCategories, ...(fitRegion ? { extent } : {}) });
+  }));
+
+  app.get("/api/geotwin/search", asyncRoute(async (req, res) => {
+    const search = String(req.query.search ?? "").trim().slice(0, 120);
+    if (search.length < 2) return res.json({ features: [] });
+    const region = String(req.query.region ?? "").trim();
+    if (region && !isAdministrativeRegion(region)) return res.status(400).json({ error: "Choose a valid analytical region." });
+    const pool = getDatabase();
+    const toFeature = (row: RowDataPacket) => ({ id: Number(row.id), category: row.category, region: row.region, name: row.name, latitude: Number(row.latitude), longitude: Number(row.longitude), geometryType: row.geometry_type, geometry: row.geometry, properties: parseJson(row.properties, {}), dataset: row.dataset, sourceFile: row.sourceFile });
+    const categoryMatches = ALL_CATEGORIES.filter(category => category.toLowerCase().startsWith(search.toLowerCase()));
+    if (categoryMatches.length) {
+      const categoryWhere = [`f.category IN (${categoryMatches.map(() => "?").join(",")})`, "d.active=1", "d.status='ready'", "f.latitude IS NOT NULL", "f.longitude IS NOT NULL"];
+      const categoryParams: (string | number)[] = [...categoryMatches];
+      if (region) {
+        categoryWhere.push("f.region=?");
+        categoryParams.push(region);
+      }
+      const [categoryRows] = await pool.execute<RowDataPacket[]>(`SELECT f.id, f.category, f.region, f.name, f.latitude, f.longitude, f.geometry_type, f.geometry, f.properties, d.display_name AS dataset, d.source_file AS sourceFile FROM geotwin_features f INNER JOIN geotwin_datasets d ON d.id=f.dataset_id WHERE ${categoryWhere.join(" AND ")} ORDER BY f.category, f.name, f.id LIMIT 10`, categoryParams);
+      return res.json({ features: categoryRows.map(toFeature) });
+    }
+    const escaped = escapeLikeTerm(search);
+    const containsPattern = `%${escaped}%`;
+    const prefixPattern = `${escaped}%`;
+    const where = [
+      "d.active=1",
+      "d.status='ready'",
+      "f.latitude IS NOT NULL",
+      "f.longitude IS NOT NULL",
+      "(f.name LIKE ? ESCAPE '!' OR f.category LIKE ? ESCAPE '!' OR f.properties LIKE ? ESCAPE '!' OR d.display_name LIKE ? ESCAPE '!' OR d.source_file LIKE ? ESCAPE '!')",
+    ];
+    const params: (string | number)[] = Array.from({ length: 5 }, () => containsPattern);
+    if (region) {
+      where.push("f.region=?");
+      params.push(region);
+    }
+    params.push(prefixPattern, search, prefixPattern);
+    const [rows] = await pool.execute<RowDataPacket[]>(`SELECT f.id, f.category, f.region, f.name, f.latitude, f.longitude, f.geometry_type, f.geometry, f.properties, d.display_name AS dataset, d.source_file AS sourceFile FROM geotwin_features f INNER JOIN geotwin_datasets d ON d.id=f.dataset_id WHERE ${where.join(" AND ")} ORDER BY CASE WHEN f.category LIKE ? ESCAPE '!' THEN 0 WHEN f.name=? THEN 1 WHEN f.name LIKE ? ESCAPE '!' THEN 2 ELSE 3 END, f.category, f.name, f.id LIMIT 10`, params);
+    return res.json({ features: rows.map(toFeature) });
   }));
 
   app.get("/api/geotwin/datasets", asyncRoute(async (_req, res) => {

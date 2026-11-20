@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AttributionControl, GeoJSON, MapContainer, Rectangle, ScaleControl, useMap, useMapEvents, ZoomControl } from "react-leaflet";
+import { AttributionControl, CircleMarker, GeoJSON, MapContainer, Popup, Rectangle, ScaleControl, useMap, useMapEvents, ZoomControl } from "react-leaflet";
 import L from "leaflet";
 import { maplibreGL } from "@maplibre/maplibre-gl-leaflet";
 import { setWorkerUrl } from "maplibre-gl";
@@ -27,12 +27,13 @@ function formatCoordinate(value: number, positive: string, negative: string) {
 type Props = {
   region: string;
   expanded?: boolean;
-  search?: string;
   showControls?: boolean;
   className?: string;
   fitToken?: number;
   focusCategory?: Category;
   focusToken?: number;
+  searchTarget?: GeoFeature | null;
+  searchTargetToken?: number;
   onFeatures?: (features: GeoFeature[]) => void;
   onMissingLayerClick?: () => void;
 };
@@ -118,7 +119,23 @@ function FitRegionExtent({ token, region, extent }: { token: number; region: str
   return <Rectangle bounds={bounds} interactive={false} pathOptions={{ color: "#b36b56", weight: 2, opacity: 0.9, dashArray: "6 6", fillColor: "#b36b56", fillOpacity: 0.08, lineCap: "round", lineJoin: "round" }} />;
 }
 
-export default function GeoTwinMap({ region, search = "", fitToken, focusCategory, focusToken, onFeatures, onMissingLayerClick, className = "" }: Props) {
+function MapSearchTarget({ token, feature }: { token: number; feature: GeoFeature | null }) {
+  const map = useMap();
+  const marker = useRef<L.CircleMarker | null>(null);
+  useEffect(() => {
+    if (!feature || !token || !Number.isFinite(feature.latitude) || !Number.isFinite(feature.longitude)) return;
+    map.stop();
+    map.flyTo([feature.latitude, feature.longitude], Math.max(15, map.getZoom()), { duration: 0.65, animate: true });
+    const timer = window.setTimeout(() => marker.current?.openPopup(), 720);
+    return () => window.clearTimeout(timer);
+  }, [feature, map, token]);
+  if (!feature || !Number.isFinite(feature.latitude) || !Number.isFinite(feature.longitude)) return null;
+  return <CircleMarker ref={marker} center={[feature.latitude, feature.longitude]} radius={9} pathOptions={{ color: "#fff", weight: 3, fillColor: categoryColor[feature.category] ?? "#b36b56", fillOpacity: 1 }}>
+    <Popup><strong>{feature.name || feature.category}</strong><div>{feature.category} · {feature.region || "Region not provided"}</div><div>{feature.dataset} · {feature.sourceFile}</div></Popup>
+  </CircleMarker>;
+}
+
+export default function GeoTwinMap({ region, fitToken, focusCategory, focusToken, searchTarget, searchTargetToken, onFeatures, onMissingLayerClick, className = "" }: Props) {
   const [layers, setLayers] = useState<Category[]>(defaultMapCategories);
   const [features, setFeatures] = useState<GeoFeature[]>([]);
   const [bounds, setBounds] = useState<BoundsBox | null>(null);
@@ -138,7 +155,7 @@ export default function GeoTwinMap({ region, search = "", fitToken, focusCategor
   const load = useCallback(async (box: BoundsBox | null, signal?: AbortSignal, fitRegion = false) => {
     if (!layers.length) { setLoading(false); setError(""); setSessionExpired(false); setFeatures([]); setDataStatus("All map layers are hidden."); onFeatures?.([]); return; }
     setLoading(true); setError(""); setSessionExpired(false);
-    const params = new URLSearchParams({ categories: layers.join(","), region, search: search.trim() });
+    const params = new URLSearchParams({ categories: layers.join(","), region });
     if (fitRegion) params.set("fitRegion", "1");
     else if (box) Object.entries(box).forEach(([key, value]) => params.set(key, String(value)));
     try {
@@ -160,7 +177,7 @@ export default function GeoTwinMap({ region, search = "", fitToken, focusCategor
         setError(needsLogin ? "Your private data session has ended. Sign in again to reload map features." : message);
       }
     } finally { if (!signal?.aborted) setLoading(false); }
-  }, [layers, onFeatures, region, search]);
+  }, [layers, onFeatures, region]);
 
   useEffect(() => {
     if (priorRegion.current === region) return;
@@ -219,6 +236,7 @@ export default function GeoTwinMap({ region, search = "", fitToken, focusCategor
           <ZoomControl position="bottomright" />
           <ScaleControl position="bottomleft" metric imperial={false} />
           <MapStateListener onBounds={boundsCallback} onCenter={centerCallback} />
+          <MapSearchTarget token={searchTargetToken ?? 0} feature={searchTarget ?? null} />
           <FitButton token={fitToken} features={features} />
           <FitRegionExtent token={regionFitToken} region={region} extent={activeRegionExtent} />
           <MapHomeControls />

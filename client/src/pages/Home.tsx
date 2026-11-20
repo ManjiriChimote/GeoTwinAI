@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity, ArrowDownToLine, ArrowRight, BarChart3, BookOpenText, Building2, CheckCircle2, ChevronDown, ChevronRight,
   CircleHelp, Compass, Database, Download, FileText, Flower2, Layers2, Leaf, Map as MapIcon, MapPinned, Menu,
-  Copy, LogOut, MessageSquareText, PanelLeftClose, RefreshCw, Search, Settings2, ShieldAlert, Sparkles, Waves, X, Zap,
+  Copy, LogOut, MapPin, MessageSquareText, PanelLeftClose, RefreshCw, Search, Settings2, ShieldAlert, Sparkles, Waves, X, Zap,
 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import GeoTwinMap from "@/components/GeoTwinMap";
@@ -62,6 +62,12 @@ export default function Home({ accountName, accountEmail, accountId, onLogout }:
   const [mapFitToken, setMapFitToken] = useState(0);
   const [mapFocusToken, setMapFocusToken] = useState(0);
   const [visibleFeatureCount, setVisibleFeatureCount] = useState(0);
+  const [mapSearchResults, setMapSearchResults] = useState<GeoFeature[]>([]);
+  const [mapSearchBusy, setMapSearchBusy] = useState(false);
+  const [mapSearchError, setMapSearchError] = useState("");
+  const [mapSearchOpen, setMapSearchOpen] = useState(false);
+  const [mapSearchTarget, setMapSearchTarget] = useState<GeoFeature | null>(null);
+  const [mapSearchTargetToken, setMapSearchTargetToken] = useState(0);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [analysisType, setAnalysisType] = useState("regional");
   const [analysisBusy, setAnalysisBusy] = useState(false);
@@ -90,6 +96,27 @@ export default function Home({ accountName, accountEmail, accountId, onLogout }:
     const timer = window.setInterval(() => { void refreshData(); }, 3200);
     return () => window.clearInterval(timer);
   }, [initializing, refreshData]);
+
+  useEffect(() => {
+    const query = exploreSearch.trim();
+    if (page !== "Explore" || query.length < 2 || !mapSearchOpen) {
+      setMapSearchResults([]); setMapSearchBusy(false); setMapSearchError("");
+      return;
+    }
+    const controller = new AbortController();
+    const params = new URLSearchParams({ search: query });
+    if (region !== "All regions") params.set("region", region);
+    setMapSearchResults([]); setMapSearchError(""); setMapSearchBusy(true);
+    const timer = window.setTimeout(() => {
+      void apiJson<{ features: GeoFeature[] }>(`/api/geotwin/search?${params.toString()}`, { signal: controller.signal })
+        .then(result => { if (!controller.signal.aborted) setMapSearchResults(result.features); })
+        .catch(error => { if (!controller.signal.aborted) setMapSearchError(error instanceof Error ? error.message : "Map search could not be completed."); })
+        .finally(() => { if (!controller.signal.aborted) setMapSearchBusy(false); });
+    }, 280);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [exploreSearch, mapSearchOpen, page, region]);
+
+  useEffect(() => { setMapSearchTarget(null); }, [region]);
 
   const runAnalysis = useCallback(async (type = analysisType) => {
     setAnalysisBusy(true); setAnalysisError("");
@@ -176,7 +203,12 @@ export default function Home({ accountName, accountEmail, accountId, onLogout }:
   const toggleReportDataset = (key: string) => setReportDatasetKeys(current => { const allKeys=activeDatasets.map(dataset=>dataset.key); const base=current.length?current:allKeys; const next=base.includes(key)?base.filter(item=>item!==key):[...base,key]; return next.length===allKeys.length?[]:next; });
   const toggleReportIndicator = (indicator: ReportIndicator) => setReportIndicators(v => v.includes(indicator) ? (v.length > 1 ? v.filter(item => item !== indicator) : v) : [...v, indicator]);
   const copyOwnerIdentity = async () => { const identity = String(accountId); try { await navigator.clipboard.writeText(identity); setAccessNote("Account ID copied. Enter it only as GEOTWIN_OWNER_ACCOUNT_ID in protected project settings."); } catch { window.prompt("Copy this account ID into GEOTWIN_OWNER_ACCOUNT_ID in protected project settings. Do not paste it into chat.", identity); } };
-  const navigate = (next: Page) => { setPage(next); setMobileNav(false); setExploreSearch(""); };
+  const selectMapSearchResult = (feature: GeoFeature) => {
+    setExploreSearch(feature.name || feature.category); setMapSearchTarget(feature); setMapSearchTargetToken(value => value + 1);
+    setMapSearchResults([]); setMapSearchError(""); setMapSearchOpen(false);
+  };
+  const clearMapSearch = () => { setExploreSearch(""); setMapSearchTarget(null); setMapSearchResults([]); setMapSearchError(""); setMapSearchOpen(false); };
+  const navigate = (next: Page) => { setPage(next); setMobileNav(false); clearMapSearch(); };
 
   const SectionTitle = ({ label, title, copy, action }: { label: string; title: string; copy?: string; action?: React.ReactNode }) => <div className="section-head"><div><span className="eyebrow">{label}</span><h1>{title}</h1>{copy && <p>{copy}</p>}</div>{action}</div>;
   const RegionControls = ({ isMobile = false }: { isMobile?: boolean }) => <div role="group" aria-label="Filter workspace by analytical region" className={`region-list ${isMobile ? "region-list-mobile" : ""}`}>{regionChoices.map((item,index)=><button type="button" key={item} aria-pressed={region===item} className={`region-button ${region===item?"is-selected":""}`} onClick={()=>setRegion(item)}><span className="region-index">{String(index).padStart(2,"0")}</span><span>{item}</span>{region===item&&<i />}</button>)}</div>;
@@ -205,8 +237,16 @@ export default function Home({ accountName, accountEmail, accountId, onLogout }:
 
         {page==="Explore"&&<>
           <SectionTitle label="EXPLORE · SOURCE RECORDS" title="Read the map." copy="Move through the city and inspect the features behind each pattern." action={<button className="secondary-btn" onClick={()=>setMapFitToken(v=>v+1)} disabled={!visibleFeatureCount} title="Frame the currently loaded records in the visible map extent"><MapPinned size={15}/>Frame loaded features</button>} />
-          <div className="explore-controls"><div className="search-field"><Search size={16}/><input value={exploreSearch} onChange={e=>setExploreSearch(e.target.value)} placeholder="Search names, categories or source fields…"/><kbd>/</kbd></div><div className="filter-hint"><span>{region} region</span><i/>{formatNumber(activeDatasets.length)} active datasets</div><button className="soft-filter" onClick={()=>setRegion(region==="All regions"?"Central":"All regions")}><Layers2 size={14}/>{region==="All regions"?"Central region":"All regions"}<ChevronDown size={13}/></button></div>
-          <GeoTwinMap region={region==="All regions"?"":region} search={exploreSearch} fitToken={mapFitToken} focusCategory={focusCategory} focusToken={mapFocusToken} onFeatures={onMapFeatures} onMissingLayerClick={()=>navigate("Data Management")} className="explore-map" />
+          <div className="explore-controls">
+            <div className="map-search-control" onBlur={event=>{if(!(event.relatedTarget instanceof Node)||!event.currentTarget.contains(event.relatedTarget))setMapSearchOpen(false);}}>
+              <div className="search-field"><Search size={16}/><input value={exploreSearch} onChange={event=>{setExploreSearch(event.target.value);setMapSearchTarget(null);setMapSearchOpen(true);}} onFocus={()=>setMapSearchOpen(true)} onKeyDown={event=>{if(event.key==="Enter"){event.preventDefault();if(mapSearchResults[0])selectMapSearchResult(mapSearchResults[0]);}if(event.key==="Escape")setMapSearchOpen(false);}} placeholder="Search active schools, parks, names or attributes…" aria-label="Search map records" aria-autocomplete="list" aria-controls="map-search-results" aria-expanded={mapSearchOpen}/>{exploreSearch&&<button type="button" className="map-search-clear" onMouseDown={event=>event.preventDefault()} onClick={clearMapSearch} aria-label="Clear map search"><X size={13}/></button>}<kbd>/</kbd></div>
+              {mapSearchOpen&&<div id="map-search-results" className="map-search-results" role="listbox" aria-label="Map search results" aria-busy={mapSearchBusy}>
+                {exploreSearch.trim().length<2?<div className="map-search-message" role="status">Type at least two characters to search active mapped records.</div>:mapSearchBusy?<div className="map-search-message" role="status">Searching active mapped records…</div>:mapSearchError?<div className="map-search-message is-error" role="alert">{mapSearchError}</div>:mapSearchResults.length?mapSearchResults.map(feature=><button type="button" role="option" aria-selected="false" className="map-search-result" key={`${feature.category}-${feature.id}`} onMouseDown={event=>event.preventDefault()} onClick={()=>selectMapSearchResult(feature)}><span className="map-search-result-pin"><MapPin size={14}/></span><span className="map-search-result-copy"><strong>{feature.name||feature.category}</strong><small>{feature.category} · {feature.region||"Region not provided"}</small><small>{feature.dataset} · {feature.sourceFile}</small></span><span className="map-search-result-action">SHOW</span></button>):<div className="map-search-message" role="status">No active mapped records matched this search.</div>}
+              </div>}
+            </div>
+            <div className="filter-hint"><span>{region} region</span><i/>{formatNumber(activeDatasets.length)} active datasets</div><button className="soft-filter" onClick={()=>setRegion(region==="All regions"?"Central":"All regions")}><Layers2 size={14}/>{region==="All regions"?"Central region":"All regions"}<ChevronDown size={13}/></button>
+          </div>
+          <GeoTwinMap region={region==="All regions"?"":region} fitToken={mapFitToken} focusCategory={focusCategory} focusToken={mapFocusToken} searchTarget={mapSearchTarget} searchTargetToken={mapSearchTargetToken} onFeatures={onMapFeatures} onMissingLayerClick={()=>navigate("Data Management")} className="explore-map" />
           <div className="explore-bottom"><div><span className="eyebrow">INSPECT A FEATURE</span><p>Select a point or line to see its source attributes. Use the map layer chips to isolate categories.</p></div><div className="explore-stat-chips">{["Hospitals","Schools","Parks","Water bodies","Flood risk"].map((c,i)=><button key={c} style={{"--layer-dot": ["#c66a5b","#7287a0","#778c69","#648fa0","#c66a5b"][i]} as React.CSSProperties} onClick={()=>mapLayers(c as Category)}><i/>{c}</button>)}</div></div>
           <section className="source-snapshots"><div className="source-snapshots-heading"><div><span className="eyebrow">SATELLITE &amp; LAND-COVER EVIDENCE</span><h2>Single-scene source notes</h2></div><span className="source-summary-note">Source summaries are not independent validation.</span></div><div className="source-snapshot-grid">{environmentalSnapshots.map(snapshot=><article className="source-snapshot" key={snapshot.label}><div className="source-snapshot-top"><span className="eyebrow">{snapshot.category??"SUMMARY ONLY"}</span><span className={`source-snapshot-tag ${snapshot.sourceOnly?"is-summary-only":""}`}>{snapshot.sourceOnly?"SUMMARY ONLY":"SPATIAL RECORDS"}</span></div><h3>{snapshot.label}</h3><p className="source-snapshot-finding">{snapshot.finding||snapshot.date}</p><div className="source-snapshot-detail"><span>{snapshot.date}</span><strong>{snapshot.sourceOnly?(snapshot.label==="Land-cover summary"?`${formatNumber(snapshot.sourceRows)} source classes · no mapped layer`:"Summary only · no mapped heat layer"):snapshot.count?`${formatNumber(snapshot.count)} active feature records`:"No active spatial records"}</strong></div><small>{snapshot.source} · {snapshot.scope}</small></article>)}</div><p className="source-snapshot-limit">Scene dates and indices come from the supplied processed summaries; observation conditions and source metric units may vary. Map features show their preserved record attributes. Cloud-cover figures are withheld where source conventions are ambiguous.</p></section>
         </>}
